@@ -1,0 +1,43 @@
+<?php
+
+namespace GromNaN\SymfonyConfigXmlToPhp\Converter\Elements;
+
+use DOMElement;
+
+class CallProcessor extends AbstractElementProcessor
+{
+    public function __construct()
+    {
+        parent::__construct('call');
+    }
+
+    public function process(DOMElement $element): string
+    {
+        $method = $element->getAttribute('method');
+        $arguments = [];
+        $returnsClone = $this->parseBooleanAttribute($element, 'returns-clone');
+        
+        $argumentProcessor = new ArgumentProcessor();
+        $argumentProcessor->setIndentLevel($this->indentLevel);
+        
+        foreach ($element->childNodes as $node) {
+            if ($node instanceof DOMElement && $node->nodeName === 'argument') {
+                $arguments[] = $argumentProcessor->process($node);
+            }
+        }
+        
+        $output = $this->nl() . '->call(\'' . $method . '\'';
+        
+        if (!empty($arguments)) {
+            $output .= ', [' . implode(', ', $arguments) . ']';
+        }
+        
+        if ($returnsClone) {
+            $output .= ', true';
+        }
+        
+        $output .= ')';
+        
+        return $output;
+    }
+}
