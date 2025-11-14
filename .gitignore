@@ -1,3 +1,4 @@
 tests/input/services.php
 
 /vendor/
+.idea
