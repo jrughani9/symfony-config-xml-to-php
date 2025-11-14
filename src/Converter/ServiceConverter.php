@@ -162,7 +162,7 @@ class ServiceConverter extends AbstractConverter
                 return (float) $value;
                 
             case 'constant':
-                return constant($value);
+                return '\\' . ltrim($value, '\\');
                 
             case 'binary':
                 return base64_decode($value);
