@@ -4,33 +4,6 @@ A tool to convert Symfony XML configuration files to PHP format. Since XML confi
 
 **⚠️ This script is a best-effort tool and does not guarantee a perfect conversion. Manual review and adjustments may be necessary.**
 
-## Features
-
-### Supported Configuration Types
-- **Service Container Configuration** (`services.xml`)
-- **Routing Configuration** (`routes.xml`)
-
-### Service Container Features
-- Service definitions with arguments, calls, properties, and tags
-- Service aliases and abstract services
-- Autowiring and autoconfiguration
-- Factory services (static, service-based, and expression-based)
-- Service decoration
-- Tagged services and tagged iterators
-- Service locators
-- Service bindings
-- Prototype definitions with namespace loading
-- Environment-specific configurations (`when` blocks)
-- Imports and parameters
-
-### Routing Features
-- Route definitions with paths, controllers, methods
-- Route requirements, defaults, and options
-- Route conditions
-- Route imports with prefixes
-- Host and scheme configurations
-- Environment-specific routing
-
 ## Installation
 
 ```bash
@@ -74,18 +47,6 @@ vendor/bin/convert config/ --overwrite
 vendor/bin/convert config/ --exclude="test/*" --exclude="dev/*"
 ```
 
-## Known Issues and Limitations
-
-1. **Manual Review Required**: Complex configurations may need manual adjustments after conversion
-2. **Limited Scope**: Only supports service container and routing configurations (not security, doctrine, etc.)
-3. **Special Characters**: The converter properly escapes backslashes in namespaces and class names
-4. **Comments**: XML comments are preserved as PHP comments where possible
-
-## Recent Updates
-
-- Fixed namespace escaping issue for prototype/load declarations with trailing backslashes
-- Improved handling of service IDs and class names containing backslashes
-- Enhanced error reporting and progress tracking
 
 ## Contributing
 
