@@ -88,7 +88,7 @@ final class ConvertCommand extends Command
             $io->success(sprintf('Successfully converted: %d file(s)', $successCount));
 
             if ($failureCount > 0) {
-                $io->error(sprintf('Failed to convert: %d file(s)', $failureCount));
+                $io->warning(sprintf('Failed to convert: %d file(s)', $failureCount));
 
                 if (!empty($errors)) {
                     $io->section('Error Details');
@@ -97,7 +97,7 @@ final class ConvertCommand extends Command
                     }
                 }
 
-                return self::FAILURE;
+                return self::SUCCESS;
             }
 
             if ($converter->getWarningCollector()->hasWarnings()) {
