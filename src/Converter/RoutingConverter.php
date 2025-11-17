@@ -35,9 +35,9 @@ class RoutingConverter extends AbstractConverter
         $output = '<?php';
 
         $output .= $this->nl(0);
-        $output .= $this->nl().'use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;';
+        $output .= $this->nl(0).'use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;';
         $output .= $this->nl(0);
-        $output .= $this->nl().'return function (RoutingConfigurator $routes) {';
+        $output .= $this->nl(0).'return function (RoutingConfigurator $routes) {';
 
         $this->indentLevel++;
 

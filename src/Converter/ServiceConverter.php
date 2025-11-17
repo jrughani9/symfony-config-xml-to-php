@@ -41,9 +41,9 @@ class ServiceConverter extends AbstractConverter
         $output = '<?php';
 
         $output .= $this->nl(0);
-        $output .= $this->nl().'namespace Symfony\Component\DependencyInjection\Loader\Configurator;';
+        $output .= $this->nl(0).'namespace Symfony\Component\DependencyInjection\Loader\Configurator;';
         $output .= $this->nl(0);
-        $output .= $this->nl().'return static function(ContainerConfigurator $container) {';
+        $output .= $this->nl(0).'return static function(ContainerConfigurator $container) {';
 
         $this->indentLevel++;
         
