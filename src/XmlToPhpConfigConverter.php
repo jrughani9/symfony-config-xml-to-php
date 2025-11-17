@@ -13,6 +13,8 @@ namespace GromNaN\SymfonyConfigXmlToPhp;
 
 use GromNaN\SymfonyConfigXmlToPhp\Converter\ServiceConverter;
 use GromNaN\SymfonyConfigXmlToPhp\Converter\RoutingConverter;
+use GromNaN\SymfonyConfigXmlToPhp\Converter\WarningCollector;
+use GromNaN\SymfonyConfigXmlToPhp\Converter\WarningCollectorInterface;
 use GromNaN\SymfonyConfigXmlToPhp\Exception\ConversionException;
 use GromNaN\SymfonyConfigXmlToPhp\Exception\InvalidXmlException;
 
@@ -20,11 +22,13 @@ class XmlToPhpConfigConverter
 {
     private array $converters = [];
     private bool $skipValidation = false;
+    private WarningCollectorInterface $warningCollector;
 
-    public function __construct()
+    public function __construct(?WarningCollectorInterface $warningCollector = null)
     {
+        $this->warningCollector = $warningCollector ?? new WarningCollector();
         $this->converters = [
-            new ServiceConverter(),
+            new ServiceConverter($this->warningCollector),
             new RoutingConverter(),
         ];
     }
@@ -84,5 +88,13 @@ class XmlToPhpConfigConverter
     public static function getPhpFilename(string $xmlPath): string
     {
         return preg_replace('/\.xml$/', '.php', $xmlPath);
+    }
+    
+    /**
+     * Get the warning collector
+     */
+    public function getWarningCollector(): WarningCollectorInterface
+    {
+        return $this->warningCollector;
     }
 }

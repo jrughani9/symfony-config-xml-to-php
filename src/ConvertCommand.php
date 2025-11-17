@@ -99,6 +99,14 @@ final class ConvertCommand extends Command
                 
                 return self::FAILURE;
             }
+            
+            if ($converter->getWarningCollector()->hasWarnings()) {
+                $io->section('Warnings');
+                $warnings = $converter->getWarningCollector()->getFormattedWarnings();
+                foreach ($warnings as $warning) {
+                    $io->warning($warning);
+                }
+            }
 
             if ($dryRun) {
                 $io->note('This was a dry run. No files were actually created.');
@@ -112,10 +120,19 @@ final class ConvertCommand extends Command
                     $io->section('Preview of generated PHP file:');
                     $io->text($target ?: str_replace('.xml', '.php', $source));
                     $io->newLine();
+                    $converter->getWarningCollector()->clear();
                     $phpContent = $converter->convertFile($source);
                     $io->text($phpContent);
                 } else {
                     $io->success('Conversion completed successfully.');
+                }
+                
+                if ($converter->getWarningCollector()->hasWarnings()) {
+                    $io->section('Warnings');
+                    $warnings = $converter->getWarningCollector()->getFormattedWarnings();
+                    foreach ($warnings as $warning) {
+                        $io->warning($warning);
+                    }
                 }
             } catch (\Exception $e) {
                 $io->error(sprintf('Failed to convert: %s', $e->getMessage()));

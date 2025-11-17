@@ -10,10 +10,12 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class ServiceConverter extends AbstractConverter
 {
     private ElementProcessorFactory $processorFactory;
+    private ?WarningCollectorInterface $warningCollector = null;
 
-    public function __construct()
+    public function __construct(?WarningCollectorInterface $warningCollector = null)
     {
         $this->processorFactory = new ElementProcessorFactory();
+        $this->warningCollector = $warningCollector;
     }
 
     public function supports(\DOMDocument $document): bool
@@ -241,7 +243,13 @@ class ServiceConverter extends AbstractConverter
                     $processor = $this->processorFactory->getProcessor($node);
                     $output .= $processor->process($node);
                 } catch (ConversionException $e) {
-                    // Skip unsupported elements in defaults
+                    $this->warningCollector?->addWarning(
+                        'Skipped unsupported element in defaults',
+                        [
+                            'element' => $node->nodeName,
+                            'reason' => $e->getMessage()
+                        ]
+                    );
                 }
             }
         }
@@ -391,7 +399,14 @@ class ServiceConverter extends AbstractConverter
                             $processor = $this->processorFactory->getProcessor($node);
                             $output .= $processor->process($node);
                         } catch (ConversionException $e) {
-                            // TODO: Log or handle unsupported elements
+                            $this->warningCollector?->addWarning(
+                                'Skipped unsupported element in service configuration',
+                                [
+                                    'element' => $node->nodeName,
+                                    'service' => $serviceNode->getAttribute('id'),
+                                    'reason' => $e->getMessage()
+                                ]
+                            );
                         }
                 }
             }
@@ -497,7 +512,14 @@ class ServiceConverter extends AbstractConverter
                     $processor = $this->processorFactory->getProcessor($node);
                     $output .= $processor->process($node);
                 } catch (ConversionException $e) {
-                    // Skip unsupported elements
+                    $this->warningCollector?->addWarning(
+                        'Skipped unsupported element in instanceof',
+                        [
+                            'element' => $node->nodeName,
+                            'instanceof' => $id,
+                            'reason' => $e->getMessage()
+                        ]
+                    );
                 }
             }
         }
