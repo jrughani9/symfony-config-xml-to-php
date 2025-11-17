@@ -1,4 +1,12 @@
 <?php
+/**
+ * This file is part of the gromnan/symfony-config-xml-to-php package.
+ *
+ * (c) Jérôme Tamarelle <jerome@tamarelle.net>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
 
 namespace GromNaN\SymfonyConfigXmlToPhp\Converter\Elements;
 
@@ -15,7 +23,7 @@ class TagProcessor extends AbstractElementProcessor
     {
         $name = $element->getAttribute('name');
         $attributes = [];
-        
+
         // Collect all attributes except 'name'
         foreach ($element->attributes as $attr) {
             if ($attr->name !== 'name') {
@@ -33,15 +41,15 @@ class TagProcessor extends AbstractElementProcessor
                 }
             }
         }
-        
-        $output = $this->nl() . '->tag(\'' . $name . '\'';
-        
+
+        $output = $this->nl().'->tag(\''.$name.'\'';
+
         if (!empty($attributes)) {
-            $output .= ', ' . $this->convertValue($attributes);
+            $output .= ', '.$this->convertValue($attributes);
         }
-        
+
         $output .= ')';
-        
+
         return $output;
     }
 }

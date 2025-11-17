@@ -1,4 +1,12 @@
 <?php
+/**
+ * This file is part of the gromnan/symfony-config-xml-to-php package.
+ *
+ * (c) Jérôme Tamarelle <jerome@tamarelle.net>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
 
 namespace GromNaN\SymfonyConfigXmlToPhp\Converter;
 
@@ -21,7 +29,7 @@ class ServiceConverter extends AbstractConverter
     public function supports(\DOMDocument $document): bool
     {
         $root = $document->documentElement;
-        
+
         if ($root->localName !== 'container') {
             return false;
         }
@@ -46,10 +54,10 @@ class ServiceConverter extends AbstractConverter
         $output .= $this->nl(0).'return static function(ContainerConfigurator $container) {';
 
         $this->indentLevel++;
-        
+
         $hasServices = false;
         $hasParameters = false;
-        
+
         foreach ($document->documentElement->childNodes as $childNode) {
             if ($childNode instanceof \DOMElement) {
                 if ($childNode->nodeName === 'services') {
@@ -59,7 +67,7 @@ class ServiceConverter extends AbstractConverter
                 }
             }
         }
-        
+
         if ($hasServices) {
             $output .= $this->nl().'$services = $container->services();';
         }
@@ -100,11 +108,11 @@ class ServiceConverter extends AbstractConverter
             if ($node instanceof \DOMElement && $node->nodeName === 'import') {
                 $resource = $node->getAttribute('resource');
                 $ignoreErrors = $this->parseBooleanAttribute($node, 'ignore-errors');
-                
+
                 if ($ignoreErrors) {
-                    $output .= $this->nl().'$container->import(\'' . $resource . '\', null, true);';
+                    $output .= $this->nl().'$container->import(\''.$resource.'\', null, true);';
                 } else {
-                    $output .= $this->nl().'$container->import(\'' . $resource . '\');';
+                    $output .= $this->nl().'$container->import(\''.$resource.'\');';
                 }
             }
         }
@@ -121,7 +129,7 @@ class ServiceConverter extends AbstractConverter
             if ($node instanceof \DOMElement && $node->nodeName === 'parameter') {
                 $key = $node->getAttribute('key');
                 $value = $this->getParameterValue($node);
-                $output .= $this->nl().'$parameters->set(\'' . $key . '\', ' . $this->convertValue($value) . ');';
+                $output .= $this->nl().'$parameters->set(\''.$key.'\', '.$this->convertValue($value).');';
             }
         }
         if ($output) {
@@ -150,25 +158,18 @@ class ServiceConverter extends AbstractConverter
                     }
                 }
                 return $items;
-            
             case 'string':
                 return $value;
-            
             case 'boolean':
                 return in_array(strtolower($value), ['true', '1', 'yes', 'on'], true);
-            
             case 'integer':
                 return (int) $value;
-            
             case 'float':
                 return (float) $value;
-                
             case 'constant':
-                return '\\' . ltrim($value, '\\');
-                
+                return '\\'.ltrim($value, '\\');
             case 'binary':
                 return base64_decode($value);
-            
             default:
                 if (preg_match('/^%env\((.+)\)%$/', $value)) {
                     return $value;
@@ -185,7 +186,7 @@ class ServiceConverter extends AbstractConverter
         $output = '';
         $hasDefaults = false;
         $hasInstanceof = false;
-        
+
         foreach ($servicesNode->childNodes as $node) {
             if ($node instanceof \DOMElement) {
                 switch ($node->nodeName) {
@@ -196,8 +197,8 @@ class ServiceConverter extends AbstractConverter
                     case 'service':
                         if (!$hasDefaults && !$hasInstanceof && $output === '') {
                             // Add spacing before first service if no defaults
-                        } else if (!$hasDefaults && !$hasInstanceof) {
-                            $output = $this->nl(0) . ltrim($output);
+                        } elseif (!$hasDefaults && !$hasInstanceof) {
+                            $output = $this->nl(0).ltrim($output);
                         }
                         $output .= $this->processService($node);
                         break;
@@ -217,7 +218,7 @@ class ServiceConverter extends AbstractConverter
                 }
             }
         }
-        
+
         return $output;
     }
 
@@ -247,7 +248,7 @@ class ServiceConverter extends AbstractConverter
                         'Skipped unsupported element in defaults',
                         [
                             'element' => $node->nodeName,
-                            'reason' => $e->getMessage()
+                            'reason' => $e->getMessage(),
                         ]
                     );
                 }
@@ -257,7 +258,7 @@ class ServiceConverter extends AbstractConverter
         $this->indentLevel--;
         $output .= ';';
         $output .= $this->nl(0);
-        
+
         return $output;
     }
 
@@ -266,27 +267,27 @@ class ServiceConverter extends AbstractConverter
         $id = $serviceNode->getAttribute('id');
         $class = $serviceNode->getAttribute('class');
         $alias = $serviceNode->getAttribute('alias');
-        
+
         if ($alias) {
-            $output = $this->nl().'$services->alias(\'' . $this->escapeString($id) . '\', \'' . $this->escapeString($alias) . '\')';
-            
+            $output = $this->nl().'$services->alias(\''.$this->escapeString($id).'\', \''.$this->escapeString($alias).'\')';
+
             if ($this->parseBooleanAttribute($serviceNode, 'public')) {
                 $output .= '->public()';
             }
         } else {
-            $output = $this->nl().'$services->set(\'' . $this->escapeString($id) . '\'';
-            
+            $output = $this->nl().'$services->set(\''.$this->escapeString($id).'\'';
+
             if ($class) {
-                $output .= ', ' . $this->convertValue($class);
+                $output .= ', '.$this->convertValue($class);
             }
-            
+
             $output .= ')';
-            
+
             $output .= $this->processServiceConfiguration($serviceNode);
         }
-        
+
         $output .= ';';
-        
+
         return $output;
     }
 
@@ -318,7 +319,7 @@ class ServiceConverter extends AbstractConverter
             $output .= $this->nl().'->synthetic()';
         }
         if ($parent = $serviceNode->getAttribute('parent')) {
-            $output .= $this->nl().'->parent(\'' . $parent . '\')';
+            $output .= $this->nl().'->parent(\''.$parent.'\')';
         }
         if ($this->parseBooleanAttribute($serviceNode, 'shared', true) === false) {
             $output .= $this->nl().'->share(false)';
@@ -329,10 +330,10 @@ class ServiceConverter extends AbstractConverter
             $decorationInnerName = $serviceNode->getAttribute('decoration-inner-name');
             $decorationPriority = $serviceNode->getAttribute('decoration-priority');
             $decorationOnInvalid = $serviceNode->getAttribute('decoration-on-invalid');
-            
-            $decorateArgs = ["'" . $decorates . "'"];
+
+            $decorateArgs = ["'".$decorates."'"];
             if ($decorationInnerName) {
-                $decorateArgs[] = "'" . $decorationInnerName . "'";
+                $decorateArgs[] = "'".$decorationInnerName."'";
             } else {
                 $decorateArgs[] = 'null';
             }
@@ -343,10 +344,10 @@ class ServiceConverter extends AbstractConverter
                 if (!$decorationPriority) {
                     $decorateArgs[] = '0';
                 }
-                $decorateArgs[] = ContainerInterface::class . '::' . strtoupper($decorationOnInvalid);
+                $decorateArgs[] = ContainerInterface::class.'::'.strtoupper($decorationOnInvalid);
             }
-            
-            $output .= $this->nl().'->decorate(' . implode(', ', $decorateArgs) . ')';
+
+            $output .= $this->nl().'->decorate('.implode(', ', $decorateArgs).')';
         }
 
         foreach ($serviceNode->childNodes as $node) {
@@ -354,16 +355,16 @@ class ServiceConverter extends AbstractConverter
                 $package = $node->getAttribute('package');
                 $version = $node->getAttribute('version');
                 $message = $this->getTextContent($node);
-                
+
                 $deprecateArgs = [];
                 if ($package) {
-                    $deprecateArgs[] = "'" . $package . "'";
+                    $deprecateArgs[] = "'".$package."'";
                 }
                 if ($version) {
                     if (!$package) {
                         $deprecateArgs[] = "''";
                     }
-                    $deprecateArgs[] = "'" . $version . "'";
+                    $deprecateArgs[] = "'".$version."'";
                 }
                 if ($message) {
                     if (!$package && !$version) {
@@ -372,23 +373,23 @@ class ServiceConverter extends AbstractConverter
                     } elseif (!$version) {
                         $deprecateArgs[] = "''";
                     }
-                    $deprecateArgs[] = "'" . $this->escapeString($message) . "'";
+                    $deprecateArgs[] = "'".$this->escapeString($message)."'";
                 }
-                
-                $output .= $this->nl().'->deprecate(' . implode(', ', $deprecateArgs) . ')';
+
+                $output .= $this->nl().'->deprecate('.implode(', ', $deprecateArgs).')';
             }
         }
 
         $arguments = $this->processArguments($serviceNode);
         if (!empty($arguments)) {
-            $output .= $this->nl().'->args([' . implode(', ', $arguments) . '])';
+            $output .= $this->nl().'->args(['.implode(', ', $arguments).'])';
         }
 
         foreach ($serviceNode->childNodes as $node) {
             if ($node instanceof \DOMElement) {
                 switch ($node->nodeName) {
                     case 'file':
-                        $output .= $this->nl().'->file(\'' . $this->getTextContent($node) . '\')';
+                        $output .= $this->nl().'->file(\''.$this->getTextContent($node).'\')';
                         break;
                     case 'argument':
                     case 'deprecated':
@@ -404,7 +405,7 @@ class ServiceConverter extends AbstractConverter
                                 [
                                     'element' => $node->nodeName,
                                     'service' => $serviceNode->getAttribute('id'),
-                                    'reason' => $e->getMessage()
+                                    'reason' => $e->getMessage(),
                                 ]
                             );
                         }
@@ -445,15 +446,15 @@ class ServiceConverter extends AbstractConverter
     {
         $id = $aliasNode->getAttribute('id');
         $alias = $aliasNode->getAttribute('alias');
-        
-        $output = $this->nl().'$services->alias(\'' . $this->escapeString($id) . '\', \'' . $this->escapeString($alias) . '\')';
-        
+
+        $output = $this->nl().'$services->alias(\''.$this->escapeString($id).'\', \''.$this->escapeString($alias).'\')';
+
         if ($this->parseBooleanAttribute($aliasNode, 'public')) {
             $output .= '->public()';
         }
-        
+
         $output .= ';';
-        
+
         return $output;
     }
 
@@ -462,23 +463,23 @@ class ServiceConverter extends AbstractConverter
         $namespace = $prototypeNode->getAttribute('namespace');
         $resource = $prototypeNode->getAttribute('resource');
         $exclude = $prototypeNode->getAttribute('exclude');
-        
-        $output = $this->nl().'$services->load(\'' . $this->escapeString($namespace) . '\', \'' . $resource . '\'';
-        
+
+        $output = $this->nl().'$services->load(\''.$this->escapeString($namespace).'\', \''.$resource.'\'';
+
         if ($exclude) {
             $excludes = array_map('trim', explode(',', $exclude));
             if (count($excludes) === 1) {
-                $output .= '->exclude(\'' . $excludes[0] . '\')';
+                $output .= '->exclude(\''.$excludes[0].'\')';
             } else {
-                $output .= '->exclude([' . implode(', ', array_map(fn($e) => "'$e'", $excludes)) . '])';
+                $output .= '->exclude(['.implode(', ', array_map(fn($e) => "'$e'", $excludes)).'])';
             }
         } else {
             $output .= ')';
         }
-        
+
         $this->indentLevel++;
         $this->processorFactory->setIndentLevel($this->indentLevel);
-        
+
         foreach ($prototypeNode->childNodes as $node) {
             if ($node instanceof \DOMElement) {
                 try {
@@ -489,23 +490,23 @@ class ServiceConverter extends AbstractConverter
                 }
             }
         }
-        
+
         $this->indentLevel--;
         $output .= ';';
         $output .= $this->nl(0);
-        
+
         return $output;
     }
 
     private function processInstanceof(\DOMElement $instanceofNode): string
     {
         $id = $instanceofNode->getAttribute('id');
-        
-        $output = $this->nl().'$services->instanceof(\'' . $this->escapeString($id) . '\')';
-        
+
+        $output = $this->nl().'$services->instanceof(\''.$this->escapeString($id).'\')';
+
         $this->indentLevel++;
         $this->processorFactory->setIndentLevel($this->indentLevel);
-        
+
         foreach ($instanceofNode->childNodes as $node) {
             if ($node instanceof \DOMElement) {
                 try {
@@ -517,68 +518,68 @@ class ServiceConverter extends AbstractConverter
                         [
                             'element' => $node->nodeName,
                             'instanceof' => $id,
-                            'reason' => $e->getMessage()
+                            'reason' => $e->getMessage(),
                         ]
                     );
                 }
             }
         }
-        
+
         $this->indentLevel--;
         $output .= ';';
         $output .= $this->nl(0);
-        
+
         return $output;
     }
 
     private function processStack(\DOMElement $stackNode): string
     {
         $id = $stackNode->getAttribute('id');
-        
-        $output = $this->nl().'$services->stack(\'' . $this->escapeString($id) . '\', [';
+
+        $output = $this->nl().'$services->stack(\''.$this->escapeString($id).'\', [';
         $this->indentLevel++;
-        
+
         $services = [];
         foreach ($stackNode->childNodes as $node) {
             if ($node instanceof \DOMElement && $node->nodeName === 'service') {
                 $serviceId = $node->getAttribute('id');
                 $class = $node->getAttribute('class');
-                
+
                 if ($serviceId) {
-                    $services[] = $this->nl().'service(\'' . $serviceId . '\')';
+                    $services[] = $this->nl().'service(\''.$serviceId.'\')';
                 } else {
-                    $inlineOutput = 'inline_service(\'' . $class . '\')';
-                    
+                    $inlineOutput = 'inline_service(\''.$class.'\')';
+
                     $arguments = $this->processArguments($node);
                     if (!empty($arguments)) {
-                        $inlineOutput .= '->args([' . implode(', ', $arguments) . '])';
+                        $inlineOutput .= '->args(['.implode(', ', $arguments).'])';
                     }
-                    
-                    $services[] = $this->nl() . $inlineOutput;
+
+                    $services[] = $this->nl().$inlineOutput;
                 }
             }
         }
-        
+
         $output .= implode(',', $services);
         $this->indentLevel--;
         $output .= $this->nl().']);';
-        
+
         return $output;
     }
 
     private function processWhen(\DOMElement $whenNode): string
     {
         $env = $whenNode->getAttribute('env');
-        
-        $output = $this->nl().'if ($container->env() === \'' . $env . '\') {';
+
+        $output = $this->nl().'if ($container->env() === \''.$env.'\') {';
         $this->indentLevel++;
-        
+
         $output .= $this->processChildNodes($whenNode);
-        
+
         $this->indentLevel--;
         $output .= $this->nl().'}';
         $output .= $this->nl(0);
-        
+
         return $output;
     }
 }

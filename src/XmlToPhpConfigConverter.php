@@ -57,14 +57,14 @@ class XmlToPhpConfigConverter
         // Load and parse the XML
         $dom = new \DOMDocument();
         $dom->preserveWhiteSpace = true;
-        
+
         // Disable errors temporarily to handle invalid XML gracefully
         $previousErrorReporting = libxml_use_internal_errors(true);
         $loaded = $dom->load($xmlPath);
         $errors = libxml_get_errors();
         libxml_clear_errors();
         libxml_use_internal_errors($previousErrorReporting);
-        
+
         if (!$loaded) {
             throw InvalidXmlException::fromLibXmlErrors($xmlPath, $errors);
         }
@@ -89,7 +89,7 @@ class XmlToPhpConfigConverter
     {
         return preg_replace('/\.xml$/', '.php', $xmlPath);
     }
-    
+
     /**
      * Get the warning collector
      */

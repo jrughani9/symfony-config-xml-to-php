@@ -1,4 +1,12 @@
 <?php
+/**
+ * This file is part of the gromnan/symfony-config-xml-to-php package.
+ *
+ * (c) Jérôme Tamarelle <jerome@tamarelle.net>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
 
 namespace GromNaN\SymfonyConfigXmlToPhp\Converter\Elements;
 
@@ -8,7 +16,7 @@ use GromNaN\SymfonyConfigXmlToPhp\Converter\WarningCollectorInterface;
 class ArgumentProcessor extends AbstractElementProcessor
 {
     private ?WarningCollectorInterface $warningCollector = null;
-    
+
     public function __construct(?WarningCollectorInterface $warningCollector = null)
     {
         parent::__construct('argument');
@@ -20,7 +28,7 @@ class ArgumentProcessor extends AbstractElementProcessor
         $type = $element->getAttribute('type');
         $key = $element->getAttribute('key');
         $id = $element->getAttribute('id');
-        
+
         // Check for inline service definition first
         foreach ($element->childNodes as $child) {
             if ($child instanceof \DOMElement && $child->nodeName === 'service') {
@@ -33,35 +41,35 @@ class ArgumentProcessor extends AbstractElementProcessor
                         [
                             'class' => $inlineClass,
                             'context' => 'argument',
-                            'note' => 'Inline services are flattened in PHP DSL and may not behave identically'
+                            'note' => 'Inline services are flattened in PHP DSL and may not behave identically',
                         ]
                     );
-                    
+
                     // For now, we'll use inline_service() function
                     // Note: This is a simplified representation - Symfony actually creates anonymous services
-                    $inlineOutput = "inline_service('" . $this->escapeString($inlineClass) . "')";
-                    
+                    $inlineOutput = "inline_service('".$this->escapeString($inlineClass)."')";
+
                     // Process arguments of the inline service if any
                     $inlineArgs = $this->processInlineServiceArguments($child);
                     if (!empty($inlineArgs)) {
-                        $inlineOutput .= '->args([' . implode(', ', $inlineArgs) . '])';
+                        $inlineOutput .= '->args(['.implode(', ', $inlineArgs).'])';
                     }
-                    
+
                     return $inlineOutput;
                 }
             }
         }
-        
+
         // Service reference
         if ($type === 'service' || $id) {
-            return "service('" . ($id ?: $this->getTextContent($element)) . "')";
+            return "service('".($id ?: $this->getTextContent($element))."')";
         }
-        
+
         // Tagged services
         if ($type === 'tagged_iterator' || $type === 'tagged') {
             $tag = $element->getAttribute('tag');
             $options = [];
-            
+
             if ($element->hasAttribute('index-by')) {
                 $options[] = sprintf("'index_by' => '%s'", $element->getAttribute('index-by'));
             }
@@ -71,11 +79,11 @@ class ArgumentProcessor extends AbstractElementProcessor
             if ($element->hasAttribute('default-priority-method')) {
                 $options[] = sprintf("'default_priority_method' => '%s'", $element->getAttribute('default-priority-method'));
             }
-            
+
             if (empty($options)) {
-                return "tagged_iterator('" . $tag . "')";
+                return "tagged_iterator('".$tag."')";
             }
-            
+
             return sprintf("tagged_iterator('%s', [%s])", $tag, implode(', ', $options));
         }
 
@@ -83,15 +91,15 @@ class ArgumentProcessor extends AbstractElementProcessor
         if ($type === 'tagged_locator') {
             $tag = $element->getAttribute('tag');
             $options = [];
-            
+
             if ($element->hasAttribute('index-by')) {
                 $options[] = sprintf("'index_by' => '%s'", $element->getAttribute('index-by'));
             }
-            
+
             if (empty($options)) {
-                return "tagged_locator('" . $tag . "')";
+                return "tagged_locator('".$tag."')";
             }
-            
+
             return sprintf("tagged_locator('%s', [%s])", $tag, implode(', ', $options));
         }
 
@@ -107,9 +115,9 @@ class ArgumentProcessor extends AbstractElementProcessor
                     }
                 }
             }
-            return 'service_locator([' . implode(', ', $services) . '])';
+            return 'service_locator(['.implode(', ', $services).'])';
         }
-        
+
         // Collection
         if ($type === 'collection') {
             $items = [];
@@ -119,15 +127,15 @@ class ArgumentProcessor extends AbstractElementProcessor
                     $childProcessor->setIndentLevel($this->indentLevel);
                     $childKey = $child->getAttribute('key');
                     $childValue = $childProcessor->process($child);
-                    
+
                     if ($childKey !== '') {
-                        $items[] = var_export($childKey, true) . ' => ' . $childValue;
+                        $items[] = var_export($childKey, true).' => '.$childValue;
                     } else {
                         $items[] = $childValue;
                     }
                 }
             }
-            return '[' . implode(', ', $items) . ']';
+            return '['.implode(', ', $items).']';
         }
 
         // Constant
@@ -147,19 +155,19 @@ class ArgumentProcessor extends AbstractElementProcessor
             $expression = $this->getTextContent($element);
             return sprintf("expr('%s')", $expression);
         }
-        
+
         // Regular value
         $value = $this->getTextContent($element);
         return $this->convertValue($value);
     }
-    
+
     /**
      * Process arguments for inline service definitions
      */
     private function processInlineServiceArguments(\DOMElement $serviceElement): array
     {
         $arguments = [];
-        
+
         foreach ($serviceElement->childNodes as $node) {
             if ($node instanceof \DOMElement && $node->nodeName === 'argument') {
                 $processor = new self();
@@ -167,7 +175,7 @@ class ArgumentProcessor extends AbstractElementProcessor
                 $arguments[] = $processor->process($node);
             }
         }
-        
+
         return $arguments;
     }
 }

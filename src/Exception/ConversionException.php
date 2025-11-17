@@ -1,4 +1,12 @@
 <?php
+/**
+ * This file is part of the gromnan/symfony-config-xml-to-php package.
+ *
+ * (c) Jérôme Tamarelle <jerome@tamarelle.net>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
 
 namespace GromNaN\SymfonyConfigXmlToPhp\Exception;
 
@@ -37,12 +45,12 @@ class ConversionException extends \RuntimeException
     private function updateMessage(): void
     {
         $message = $this->message;
-        
+
         // Strip any previously added context
         if (preg_match('/^(.*?)( \([^)]+\))?$/', $message, $matches)) {
             $message = $matches[1];
         }
-        
+
         $context = [];
 
         if ($this->xmlFile) {

@@ -1,4 +1,12 @@
 <?php
+/**
+ * This file is part of the gromnan/symfony-config-xml-to-php package.
+ *
+ * (c) Jérôme Tamarelle <jerome@tamarelle.net>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
 
 namespace GromNaN\SymfonyConfigXmlToPhp\Converter;
 
@@ -12,7 +20,7 @@ trait ValueConversionTrait
      */
     protected function nl(int $extraIndent = 1): string
     {
-        return "\n" . str_repeat($this->indentString, $this->indentLevel + $extraIndent);
+        return "\n".str_repeat($this->indentString, $this->indentLevel + $extraIndent);
     }
 
     /**
@@ -40,7 +48,7 @@ trait ValueConversionTrait
 
             // Check if it's a service reference
             if (str_starts_with($value, '@')) {
-                return "service('" . substr($value, 1) . "')";
+                return "service('".substr($value, 1)."')";
             }
 
             // Regular string
@@ -57,18 +65,18 @@ trait ValueConversionTrait
 
             foreach ($value as $key => $val) {
                 if ($isAssoc) {
-                    $items[] = var_export($key, true) . ' => ' . $this->convertValue($val);
+                    $items[] = var_export($key, true).' => '.$this->convertValue($val);
                 } else {
                     $items[] = $this->convertValue($val);
                 }
             }
 
-            return '[' . implode(', ', $items) . ']';
+            return '['.implode(', ', $items).']';
         }
 
         return var_export($value, true);
     }
-    
+
     /**
      * Escape a string for use in single quotes
      */

@@ -44,9 +44,9 @@ final class ConvertCommand extends Command
         $overwrite = $input->getOption('overwrite');
         $skipValidation = $input->getOption('skip-validation');
         $excludePatterns = $input->getOption('exclude');
-        
+
         $converter = new XmlToPhpConfigConverter();
-        
+
         if ($skipValidation) {
             $converter->setSkipValidation(true);
         }
@@ -62,7 +62,7 @@ final class ConvertCommand extends Command
                 ->notPath($excludePatterns);
 
             $filesArray = iterator_to_array($files);
-            
+
             if (empty($filesArray)) {
                 $io->warning('No XML files found in the specified directory.');
                 return self::SUCCESS;
@@ -86,20 +86,20 @@ final class ConvertCommand extends Command
 
             $io->section('Conversion Summary');
             $io->success(sprintf('Successfully converted: %d file(s)', $successCount));
-            
+
             if ($failureCount > 0) {
                 $io->error(sprintf('Failed to convert: %d file(s)', $failureCount));
-                
+
                 if (!empty($errors)) {
                     $io->section('Error Details');
                     foreach ($errors as $file => $error) {
                         $io->text(sprintf('<comment>%s:</comment> %s', $file, $error));
                     }
                 }
-                
+
                 return self::FAILURE;
             }
-            
+
             if ($converter->getWarningCollector()->hasWarnings()) {
                 $io->section('Warnings');
                 $warnings = $converter->getWarningCollector()->getFormattedWarnings();
@@ -115,7 +115,7 @@ final class ConvertCommand extends Command
             try {
                 $file = new SplFileInfo($source, dirname($source), basename($source));
                 $this->processFile($io, $file, $target, $converter, $dryRun, $overwrite);
-                
+
                 if ($dryRun) {
                     $io->section('Preview of generated PHP file:');
                     $io->text($target ?: str_replace('.xml', '.php', $source));
@@ -126,7 +126,7 @@ final class ConvertCommand extends Command
                 } else {
                     $io->success('Conversion completed successfully.');
                 }
-                
+
                 if ($converter->getWarningCollector()->hasWarnings()) {
                     $io->section('Warnings');
                     $warnings = $converter->getWarningCollector()->getFormattedWarnings();
@@ -157,20 +157,20 @@ final class ConvertCommand extends Command
         $phpContent = $converter->convertFile($file->getRealPath());
 
         // Determine the output path
-        $phpFilename = $file->getBasename('.xml') . '.php';
+        $phpFilename = $file->getBasename('.xml').'.php';
 
         if ($targetDir !== null) {
             // Build the output directory path
             $relativePath = $file->getRelativePath();
             if ($relativePath !== '') {
-                $outputDir = $targetDir . '/' . $relativePath;
-                $phpPath = $outputDir . '/' . $phpFilename;
+                $outputDir = $targetDir.'/'.$relativePath;
+                $phpPath = $outputDir.'/'.$phpFilename;
             } else {
-                $phpPath = $targetDir . '/' . $phpFilename;
+                $phpPath = $targetDir.'/'.$phpFilename;
             }
         } else {
             // Use the same directory as the source file
-            $phpPath = $file->getPath() . '/' . $phpFilename;
+            $phpPath = $file->getPath().'/'.$phpFilename;
         }
 
         if ($dryRun) {

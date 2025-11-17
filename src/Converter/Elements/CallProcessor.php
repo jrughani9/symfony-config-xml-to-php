@@ -1,4 +1,12 @@
 <?php
+/**
+ * This file is part of the gromnan/symfony-config-xml-to-php package.
+ *
+ * (c) Jérôme Tamarelle <jerome@tamarelle.net>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
 
 namespace GromNaN\SymfonyConfigXmlToPhp\Converter\Elements;
 
@@ -16,28 +24,28 @@ class CallProcessor extends AbstractElementProcessor
         $method = $element->getAttribute('method');
         $arguments = [];
         $returnsClone = $this->parseBooleanAttribute($element, 'returns-clone');
-        
+
         $argumentProcessor = new ArgumentProcessor();
         $argumentProcessor->setIndentLevel($this->indentLevel);
-        
+
         foreach ($element->childNodes as $node) {
             if ($node instanceof DOMElement && $node->nodeName === 'argument') {
                 $arguments[] = $argumentProcessor->process($node);
             }
         }
-        
-        $output = $this->nl() . '->call(\'' . $method . '\'';
-        
+
+        $output = $this->nl().'->call(\''.$method.'\'';
+
         if (!empty($arguments)) {
-            $output .= ', [' . implode(', ', $arguments) . ']';
+            $output .= ', ['.implode(', ', $arguments).']';
         }
-        
+
         if ($returnsClone) {
             $output .= ', true';
         }
-        
+
         $output .= ')';
-        
+
         return $output;
     }
 }
