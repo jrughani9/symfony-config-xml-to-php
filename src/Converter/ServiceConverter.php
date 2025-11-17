@@ -84,7 +84,7 @@ class ServiceConverter extends AbstractConverter
         $output .= $this->processChildNodes($document->documentElement);
 
         $this->indentLevel--;
-        $output .= $this->nl().'};';
+        $output .= $this->nl(0).'};';
         $output .= $this->nl(0);
 
         return $output;
