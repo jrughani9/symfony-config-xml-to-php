@@ -2,8 +2,16 @@
 
 namespace GromNaN\SymfonyConfigXmlToPhp\Converter;
 
+use GromNaN\SymfonyConfigXmlToPhp\Converter\Elements\CollectionProcessor;
+
 class RoutingConverter extends AbstractConverter
 {
+    private CollectionProcessor $collectionProcessor;
+    
+    public function __construct()
+    {
+        $this->collectionProcessor = new CollectionProcessor();
+    }
     public function supports(\DOMDocument $document): bool
     {
         $root = $document->documentElement;
@@ -102,17 +110,19 @@ class RoutingConverter extends AbstractConverter
             $output .= $this->nl().'->stateless()';
         }
         
-        $requirements = $this->processRequirements($routeNode);
+        $this->collectionProcessor->setIndentLevel($this->indentLevel);
+        
+        $requirements = $this->collectionProcessor->processRequirementsAsArray($routeNode);
         if (!empty($requirements)) {
             $output .= $this->nl().'->requirements(' . $this->convertValue($requirements) . ')';
         }
         
-        $defaults = $this->processDefaults($routeNode);
+        $defaults = $this->collectionProcessor->processDefaultsAsArray($routeNode);
         if (!empty($defaults)) {
             $output .= $this->nl().'->defaults(' . $this->convertValue($defaults) . ')';
         }
         
-        $options = $this->processOptions($routeNode);
+        $options = $this->collectionProcessor->processOptionsAsArray($routeNode);
         if (!empty($options)) {
             $output .= $this->nl().'->options(' . $this->convertValue($options) . ')';
         }
@@ -173,17 +183,19 @@ class RoutingConverter extends AbstractConverter
             $output .= $this->nl().'->trailingSlashOnRoot()';
         }
         
-        $requirements = $this->processRequirements($importNode);
+        $this->collectionProcessor->setIndentLevel($this->indentLevel);
+        
+        $requirements = $this->collectionProcessor->processRequirementsAsArray($importNode);
         if (!empty($requirements)) {
             $output .= $this->nl().'->requirements(' . $this->convertValue($requirements) . ')';
         }
         
-        $defaults = $this->processDefaults($importNode);
+        $defaults = $this->collectionProcessor->processDefaultsAsArray($importNode);
         if (!empty($defaults)) {
             $output .= $this->nl().'->defaults(' . $this->convertValue($defaults) . ')';
         }
         
-        $options = $this->processOptions($importNode);
+        $options = $this->collectionProcessor->processOptionsAsArray($importNode);
         if (!empty($options)) {
             $output .= $this->nl().'->options(' . $this->convertValue($options) . ')';
         }
@@ -195,64 +207,7 @@ class RoutingConverter extends AbstractConverter
         return $output;
     }
 
-    private function processRequirements(\DOMElement $node): array
-    {
-        $requirements = [];
-        
-        foreach ($node->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->nodeName === 'requirement') {
-                $key = $child->getAttribute('key');
-                $value = $this->getTextContent($child);
-                $requirements[$key] = $value;
-            }
-        }
-        
-        return $requirements;
-    }
 
-    private function processDefaults(\DOMElement $node): array
-    {
-        $defaults = [];
-        
-        foreach ($node->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->nodeName === 'default') {
-                $key = $child->getAttribute('key');
-                $value = $this->getTextContent($child);
-                
-                if ($value === 'true' || $value === 'false') {
-                    $value = $value === 'true';
-                } elseif (is_numeric($value)) {
-                    $value = str_contains($value, '.') ? (float) $value : (int) $value;
-                }
-                
-                $defaults[$key] = $value;
-            }
-        }
-        
-        return $defaults;
-    }
-
-    private function processOptions(\DOMElement $node): array
-    {
-        $options = [];
-        
-        foreach ($node->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->nodeName === 'option') {
-                $key = $child->getAttribute('key');
-                $value = $this->getTextContent($child);
-                
-                if ($value === 'true' || $value === 'false') {
-                    $value = $value === 'true';
-                } elseif (is_numeric($value)) {
-                    $value = str_contains($value, '.') ? (float) $value : (int) $value;
-                }
-                
-                $options[$key] = $value;
-            }
-        }
-        
-        return $options;
-    }
 
     private function processWhen(\DOMElement $whenNode): string
     {
