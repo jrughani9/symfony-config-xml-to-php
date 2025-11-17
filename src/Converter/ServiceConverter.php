@@ -14,8 +14,8 @@ class ServiceConverter extends AbstractConverter
 
     public function __construct(?WarningCollectorInterface $warningCollector = null)
     {
-        $this->processorFactory = new ElementProcessorFactory();
         $this->warningCollector = $warningCollector;
+        $this->processorFactory = new ElementProcessorFactory($warningCollector);
     }
 
     public function supports(\DOMDocument $document): bool

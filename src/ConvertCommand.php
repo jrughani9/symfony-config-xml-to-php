@@ -160,9 +160,14 @@ final class ConvertCommand extends Command
         $phpFilename = $file->getBasename('.xml') . '.php';
 
         if ($targetDir !== null) {
-            // Ensure target directory exists
-            $outputDir = $targetDir . '/' . $file->getRelativePath();
-            $phpPath = $outputDir . '/' . $phpFilename;
+            // Build the output directory path
+            $relativePath = $file->getRelativePath();
+            if ($relativePath !== '') {
+                $outputDir = $targetDir . '/' . $relativePath;
+                $phpPath = $outputDir . '/' . $phpFilename;
+            } else {
+                $phpPath = $targetDir . '/' . $phpFilename;
+            }
         } else {
             // Use the same directory as the source file
             $phpPath = $file->getPath() . '/' . $phpFilename;

@@ -3,12 +3,16 @@
 namespace GromNaN\SymfonyConfigXmlToPhp\Converter\Elements;
 
 use DOMElement;
+use GromNaN\SymfonyConfigXmlToPhp\Converter\WarningCollectorInterface;
 
 class ArgumentProcessor extends AbstractElementProcessor
 {
-    public function __construct()
+    private ?WarningCollectorInterface $warningCollector = null;
+    
+    public function __construct(?WarningCollectorInterface $warningCollector = null)
     {
         parent::__construct('argument');
+        $this->warningCollector = $warningCollector;
     }
 
     public function process(DOMElement $element): string
@@ -16,6 +20,37 @@ class ArgumentProcessor extends AbstractElementProcessor
         $type = $element->getAttribute('type');
         $key = $element->getAttribute('key');
         $id = $element->getAttribute('id');
+        
+        // Check for inline service definition first
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->nodeName === 'service') {
+                // This is an inline service definition
+                $inlineClass = $child->getAttribute('class');
+                if ($inlineClass) {
+                    // Add warning about inline service
+                    $this->warningCollector?->addWarning(
+                        'Inline service definition detected',
+                        [
+                            'class' => $inlineClass,
+                            'context' => 'argument',
+                            'note' => 'Inline services are flattened in PHP DSL and may not behave identically'
+                        ]
+                    );
+                    
+                    // For now, we'll use inline_service() function
+                    // Note: This is a simplified representation - Symfony actually creates anonymous services
+                    $inlineOutput = "inline_service('" . $this->escapeString($inlineClass) . "')";
+                    
+                    // Process arguments of the inline service if any
+                    $inlineArgs = $this->processInlineServiceArguments($child);
+                    if (!empty($inlineArgs)) {
+                        $inlineOutput .= '->args([' . implode(', ', $inlineArgs) . '])';
+                    }
+                    
+                    return $inlineOutput;
+                }
+            }
+        }
         
         // Service reference
         if ($type === 'service' || $id) {
@@ -116,5 +151,23 @@ class ArgumentProcessor extends AbstractElementProcessor
         // Regular value
         $value = $this->getTextContent($element);
         return $this->convertValue($value);
+    }
+    
+    /**
+     * Process arguments for inline service definitions
+     */
+    private function processInlineServiceArguments(\DOMElement $serviceElement): array
+    {
+        $arguments = [];
+        
+        foreach ($serviceElement->childNodes as $node) {
+            if ($node instanceof \DOMElement && $node->nodeName === 'argument') {
+                $processor = new self();
+                $processor->setIndentLevel($this->indentLevel);
+                $arguments[] = $processor->process($node);
+            }
+        }
+        
+        return $arguments;
     }
 }

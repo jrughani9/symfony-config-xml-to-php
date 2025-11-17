@@ -4,6 +4,7 @@ namespace GromNaN\SymfonyConfigXmlToPhp\Converter\Elements;
 
 use DOMElement;
 use GromNaN\SymfonyConfigXmlToPhp\Exception\UnsupportedFeatureException;
+use GromNaN\SymfonyConfigXmlToPhp\Converter\WarningCollectorInterface;
 
 class ElementProcessorFactory
 {
@@ -12,13 +13,13 @@ class ElementProcessorFactory
      */
     private array $processors;
 
-    public function __construct()
+    public function __construct(?WarningCollectorInterface $warningCollector = null)
     {
         $this->processors = [
-            new ArgumentProcessor(),
+            new ArgumentProcessor($warningCollector),
             new TagProcessor(),
             new CallProcessor(),
-            new PropertyProcessor(),
+            new PropertyProcessor($warningCollector),
             new BindProcessor(),
             new FactoryProcessor(),
         ];
