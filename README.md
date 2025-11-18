@@ -5,8 +5,9 @@ A tool to convert Symfony XML configuration files to PHP format. Since XML confi
 **⚠️ This script is a best-effort tool and does not guarantee a perfect conversion. Manual review and adjustments may be necessary.**
 
 ## Installation
-
+clone the fork and add the repository as a composer repository:
 ```bash
+composer config repositories.symfony-xml-converter path {path to this repository}
 composer require --dev gromnan/symfony-config-xml-to-php
 ```
 
