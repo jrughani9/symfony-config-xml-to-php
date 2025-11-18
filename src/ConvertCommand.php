@@ -29,6 +29,8 @@ use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
+use Symfony\Component\Routing\Loader\PhpFileLoader as RoutingPhpFileLoader;
+use Symfony\Component\Routing\Loader\XmlFileLoader as RoutingXmlFileLoader;
 
 final class ConvertCommand extends Command
 {
@@ -207,7 +209,7 @@ final class ConvertCommand extends Command
     }
 
     /**
-     * Validate that the converted PHP file produces the same container as the original XML file.
+     * Validate that the converted PHP file produces the same output as the original XML file.
      */
     private function validateFile(SymfonyStyle $io, string $xmlFile, string $phpFile, bool $skipValidation): bool
     {
@@ -215,6 +217,115 @@ final class ConvertCommand extends Command
             return true;
         }
 
+        // Detect file type by inspecting the XML root element
+        $fileType = $this->detectFileType($xmlFile);
+
+        if ($fileType === 'routing') {
+            return $this->validateRoutingFile($io, $xmlFile, $phpFile);
+        } elseif ($fileType === 'services') {
+            return $this->validateServicesFile($io, $xmlFile, $phpFile);
+        } else {
+            $io->text('  <comment>Skipping validation</comment> - Unknown file type');
+            return false;
+        }
+    }
+
+    /**
+     * Detect the type of configuration file by inspecting the XML root element.
+     */
+    private function detectFileType(string $xmlFile): ?string
+    {
+        try {
+            $dom = new \DOMDocument();
+            $dom->load($xmlFile);
+            $root = $dom->documentElement;
+
+            if ($root->localName === 'routes') {
+                return 'routing';
+            } elseif ($root->localName === 'container') {
+                return 'services';
+            }
+        } catch (\Exception $e) {
+            // If we can't parse the XML, return null
+        }
+
+        return null;
+    }
+
+    /**
+     * Validate routing configuration files.
+     */
+    private function validateRoutingFile(SymfonyStyle $io, string $xmlFile, string $phpFile): bool
+    {
+        try {
+            $xmlLoader = new RoutingXmlFileLoader(new FileLocator());
+            $xmlRoutes = $xmlLoader->load(realpath($xmlFile));
+        } catch (\Exception $e) {
+            $io->text(sprintf('  <comment>Skipping validation</comment> - XML file has errors: %s', $e->getMessage()));
+            return false;
+        }
+
+        try {
+            $phpLoader = new RoutingPhpFileLoader(new FileLocator());
+            $phpRoutes = $phpLoader->load(realpath($phpFile));
+        } catch (\Throwable $e) {
+            $io->text(sprintf('  <error>Validation failed</error> - PHP file cannot be loaded: %s', $e->getMessage()));
+            return false;
+        }
+
+        // Compare route collections by count and serialization
+        $xmlCount = count($xmlRoutes);
+        $phpCount = count($phpRoutes);
+
+        if ($xmlCount !== $phpCount) {
+            $io->text(sprintf('  <error>✗ Validation failed</error> - Route count mismatch (XML: %d, PHP: %d)', $xmlCount, $phpCount));
+            return false;
+        }
+
+        // Deep comparison: serialize both collections and compare
+        $xmlSerialized = serialize($xmlRoutes);
+        $phpSerialized = serialize($phpRoutes);
+
+        if ($xmlSerialized === $phpSerialized) {
+            $io->text('  <info>✓ Validation passed</info>');
+            return true;
+        }
+
+//        // If serialization doesn't match, do a more lenient check
+//        // Compare individual routes
+//        $xmlRoutesArray = iterator_to_array($xmlRoutes);
+//        $phpRoutesArray = iterator_to_array($phpRoutes);
+//
+//        $mismatch = false;
+//        foreach ($xmlRoutesArray as $name => $xmlRoute) {
+//            if (!isset($phpRoutesArray[$name])) {
+//                $mismatch = true;
+//                break;
+//            }
+//            // Compare key properties
+//            $phpRoute = $phpRoutesArray[$name];
+//            if ($xmlRoute->getPath() !== $phpRoute->getPath() ||
+//                $xmlRoute->getMethods() !== $phpRoute->getMethods() ||
+//                $xmlRoute->getDefaults() !== $phpRoute->getDefaults()) {
+//                $mismatch = true;
+//                break;
+//            }
+//        }
+//
+//        if (!$mismatch) {
+//            $io->text('  <info>✓ Validation passed</info>');
+//            return true;
+//        }
+
+        $io->text('  <error>✗ Validation failed</error> - Routes are not equal');
+        return false;
+    }
+
+    /**
+     * Validate service container configuration files.
+     */
+    private function validateServicesFile(SymfonyStyle $io, string $xmlFile, string $phpFile): bool
+    {
         try {
             $xmlContainer = new ContainerBuilder();
             $xmlLoader = new XmlFileLoader($xmlContainer, new FileLocator());
