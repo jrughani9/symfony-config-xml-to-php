@@ -38,10 +38,13 @@ class CallProcessor extends AbstractElementProcessor
 
         if (!empty($arguments)) {
             $output .= ', ['.implode(', ', $arguments).']';
-        }
-
-        if ($returnsClone) {
-            $output .= ', true';
+            if ($returnsClone) {
+                // When arguments exist, add returnsClone as third positional parameter
+                $output .= ', true';
+            }
+        } elseif ($returnsClone) {
+            // When no arguments but returnsClone is true, use named parameter
+            $output .= ', returnsClone: true';
         }
 
         $output .= ')';

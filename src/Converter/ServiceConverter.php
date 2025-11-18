@@ -57,6 +57,7 @@ class ServiceConverter extends AbstractConverter
 
         $hasServices = false;
         $hasParameters = false;
+        $whenEnvironments = [];
 
         foreach ($document->documentElement->childNodes as $childNode) {
             if ($childNode instanceof \DOMElement) {
@@ -64,6 +65,11 @@ class ServiceConverter extends AbstractConverter
                     $hasServices = true;
                 } elseif ($childNode->nodeName === 'parameters') {
                     $hasParameters = true;
+                } elseif ($childNode->nodeName === 'when') {
+                    $env = $childNode->getAttribute('env');
+                    if ($env) {
+                        $whenEnvironments[] = $env;
+                    }
                 }
             }
         }
@@ -71,17 +77,61 @@ class ServiceConverter extends AbstractConverter
         if ($hasServices) {
             $output .= $this->nl().'$services = $container->services();';
         }
-        if ($hasParameters) {
+        // Always need parameters for .container.known_envs (added by Symfony's XmlFileLoader)
+        if ($hasServices || $hasParameters || !empty($whenEnvironments)) {
             $output .= $this->nl().'$parameters = $container->parameters();';
         }
         
-        if ($hasServices || $hasParameters) {
+        if ($hasServices || $hasParameters || !empty($whenEnvironments)) {
             $output .= $this->nl(0);
         }
 
         $this->processorFactory->setIndentLevel($this->indentLevel);
 
-        $output .= $this->processChildNodes($document->documentElement);
+        // Process child elements in specific order for correct parameter ordering
+        // 1. Imports
+        // 2. Parameters
+        // 3. .container.known_envs (if there are when blocks)
+        // 4. Services
+        // 5. When blocks
+
+        foreach ($document->documentElement->childNodes as $childNode) {
+            if ($childNode instanceof \DOMElement && $childNode->nodeName === 'imports') {
+                $output .= $this->processElement($childNode);
+            }
+        }
+
+        foreach ($document->documentElement->childNodes as $childNode) {
+            if ($childNode instanceof \DOMElement && $childNode->nodeName === 'parameters') {
+                $output .= $this->processElement($childNode);
+            }
+        }
+
+        //TODO: revisit this
+        // Generate .container.known_envs parameter
+        // Symfony's XmlFileLoader automatically adds this parameter for all configs (empty collection if no when blocks)
+        $output .= $this->nl().'$parameters->set(\'.container.known_envs\', [';
+        if (!empty($whenEnvironments)) {
+            $this->indentLevel++;
+            foreach ($whenEnvironments as $env) {
+                $output .= $this->nl().'\''.$this->escapeString($env).'\',';
+            }
+            $this->indentLevel--;
+        }
+        $output .= $this->nl().']);';
+        $output .= $this->nl(0);
+
+        foreach ($document->documentElement->childNodes as $childNode) {
+            if ($childNode instanceof \DOMElement && $childNode->nodeName === 'services') {
+                $output .= $this->processElement($childNode);
+            }
+        }
+
+        foreach ($document->documentElement->childNodes as $childNode) {
+            if ($childNode instanceof \DOMElement && $childNode->nodeName === 'when') {
+                $output .= $this->processElement($childNode);
+            }
+        }
 
         $this->indentLevel--;
         $output .= $this->nl(0).'};';
@@ -108,6 +158,11 @@ class ServiceConverter extends AbstractConverter
             if ($node instanceof \DOMElement && $node->nodeName === 'import') {
                 $resource = $node->getAttribute('resource');
                 $ignoreErrors = $this->parseBooleanAttribute($node, 'ignore-errors');
+
+                // Convert .xml extension to .php
+                if (str_ends_with($resource, '.xml')) {
+                    $resource = substr($resource, 0, -4) . '.php';
+                }
 
                 if ($ignoreErrors) {
                     $output .= $this->nl().'$container->import(\''.$resource.'\', null, true);';
@@ -350,31 +405,22 @@ class ServiceConverter extends AbstractConverter
             $output .= $this->nl().'->decorate('.implode(', ', $decorateArgs).')';
         }
 
+        if ($constructor = $serviceNode->getAttribute('constructor')) {
+            $output .= $this->nl().'->constructor(\''.$this->escapeString($constructor).'\')';
+        }
+
         foreach ($serviceNode->childNodes as $node) {
             if ($node instanceof \DOMElement && $node->nodeName === 'deprecated') {
                 $package = $node->getAttribute('package');
                 $version = $node->getAttribute('version');
                 $message = $this->getTextContent($node);
 
+                // deprecate() always requires 3 parameters
                 $deprecateArgs = [];
-                if ($package) {
-                    $deprecateArgs[] = "'".$package."'";
-                }
-                if ($version) {
-                    if (!$package) {
-                        $deprecateArgs[] = "''";
-                    }
-                    $deprecateArgs[] = "'".$version."'";
-                }
-                if ($message) {
-                    if (!$package && !$version) {
-                        $deprecateArgs[] = "''";
-                        $deprecateArgs[] = "''";
-                    } elseif (!$version) {
-                        $deprecateArgs[] = "''";
-                    }
-                    $deprecateArgs[] = "'".$this->escapeString($message)."'";
-                }
+                $deprecateArgs[] = "'".$package."'";
+                $deprecateArgs[] = "'".$version."'";
+                // Message can be empty
+                $deprecateArgs[] = "'".$this->escapeString($message ?: '')."'";
 
                 $output .= $this->nl().'->deprecate('.implode(', ', $deprecateArgs).')';
             }
@@ -464,17 +510,22 @@ class ServiceConverter extends AbstractConverter
         $resource = $prototypeNode->getAttribute('resource');
         $exclude = $prototypeNode->getAttribute('exclude');
 
-        $output = $this->nl().'$services->load(\''.$this->escapeString($namespace).'\', \''.$resource.'\'';
+        $output = $this->nl().'$services->load(\''.$this->escapeString($namespace).'\', \''.$resource.'\')';
 
         if ($exclude) {
-            $excludes = array_map('trim', explode(',', $exclude));
-            if (count($excludes) === 1) {
-                $output .= '->exclude(\''.$excludes[0].'\')';
+            // Parse the exclude pattern - it might be a single pattern with {a,b,c} notation
+            if (strpos($exclude, '{') !== false && strpos($exclude, '}') !== false) {
+                // It's a single pattern with alternatives inside braces, keep as single string
+                $output .= $this->nl(1).'->exclude(['.$this->nl(2).'\''.$exclude.'\',' . $this->nl(1).'])';
             } else {
-                $output .= '->exclude(['.implode(', ', array_map(fn($e) => "'$e'", $excludes)).'])';
+                // Multiple patterns separated by commas
+                $excludes = array_map('trim', explode(',', $exclude));
+                if (count($excludes) === 1) {
+                    $output .= '->exclude(\''.$excludes[0].'\')';
+                } else {
+                    $output .= '->exclude(['.implode(', ', array_map(fn($e) => "'$e'", $excludes)).'])';
+                }
             }
-        } else {
-            $output .= ')';
         }
 
         $this->indentLevel++;

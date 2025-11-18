@@ -68,39 +68,73 @@ class ArgumentProcessor extends AbstractElementProcessor
         // Tagged services
         if ($type === 'tagged_iterator' || $type === 'tagged') {
             $tag = $element->getAttribute('tag');
-            $options = [];
+            $params = ["'".$tag."'"];
 
+            // Handle exclude as array or single value
+            $excludeItems = [];
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof DOMElement && $child->nodeName === 'exclude') {
+                    $excludeItems[] = "'".$child->nodeValue."'";
+                }
+            }
+
+            // Build named parameters
             if ($element->hasAttribute('index-by')) {
-                $options[] = sprintf("'index_by' => '%s'", $element->getAttribute('index-by'));
+                $params[] = "indexAttribute: '".$element->getAttribute('index-by')."'";
             }
             if ($element->hasAttribute('default-index-method')) {
-                $options[] = sprintf("'default_index_method' => '%s'", $element->getAttribute('default-index-method'));
+                $params[] = "defaultIndexMethod: '".$element->getAttribute('default-index-method')."'";
             }
             if ($element->hasAttribute('default-priority-method')) {
-                $options[] = sprintf("'default_priority_method' => '%s'", $element->getAttribute('default-priority-method'));
+                $params[] = "defaultPriorityMethod: '".$element->getAttribute('default-priority-method')."'";
+            }
+            if ($element->hasAttribute('exclude')) {
+                $params[] = "exclude: '".$element->getAttribute('exclude')."'";
+            } elseif (!empty($excludeItems)) {
+                $params[] = "exclude: [".implode(', ', $excludeItems)."]";
+            }
+            if ($element->hasAttribute('exclude-self')) {
+                $excludeSelf = $element->getAttribute('exclude-self') === 'true' ? 'true' : 'false';
+                $params[] = "excludeSelf: ".$excludeSelf;
             }
 
-            if (empty($options)) {
-                return "tagged_iterator('".$tag."')";
-            }
-
-            return sprintf("tagged_iterator('%s', [%s])", $tag, implode(', ', $options));
+            return sprintf("tagged_iterator(%s)", implode(', ', $params));
         }
 
         // Tagged locator
         if ($type === 'tagged_locator') {
             $tag = $element->getAttribute('tag');
-            $options = [];
+            $params = ["'".$tag."'"];
 
+            // Handle exclude as array or single value
+            $excludeItems = [];
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof DOMElement && $child->nodeName === 'exclude') {
+                    $excludeItems[] = "'".$child->nodeValue."'";
+                }
+            }
+
+            // Build named parameters
             if ($element->hasAttribute('index-by')) {
-                $options[] = sprintf("'index_by' => '%s'", $element->getAttribute('index-by'));
+                $params[] = "indexAttribute: '".$element->getAttribute('index-by')."'";
+            }
+            if ($element->hasAttribute('default-index-method')) {
+                $params[] = "defaultIndexMethod: '".$element->getAttribute('default-index-method')."'";
+            }
+            if ($element->hasAttribute('default-priority-method')) {
+                $params[] = "defaultPriorityMethod: '".$element->getAttribute('default-priority-method')."'";
+            }
+            if ($element->hasAttribute('exclude')) {
+                $params[] = "exclude: '".$element->getAttribute('exclude')."'";
+            } elseif (!empty($excludeItems)) {
+                $params[] = "exclude: [".implode(', ', $excludeItems)."]";
+            }
+            if ($element->hasAttribute('exclude-self')) {
+                $excludeSelf = $element->getAttribute('exclude-self') === 'true' ? 'true' : 'false';
+                $params[] = "excludeSelf: ".$excludeSelf;
             }
 
-            if (empty($options)) {
-                return "tagged_locator('".$tag."')";
-            }
-
-            return sprintf("tagged_locator('%s', [%s])", $tag, implode(', ', $options));
+            return sprintf("tagged_locator(%s)", implode(', ', $params));
         }
 
         // Service locator

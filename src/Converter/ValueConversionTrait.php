@@ -51,6 +51,11 @@ trait ValueConversionTrait
                 return "service('".substr($value, 1)."')";
             }
 
+            // Check if it's a class name
+            if (class_exists($value) || interface_exists($value) || trait_exists($value) || enum_exists($value)) {
+                return '\\'.ltrim($value, '\\').'::class';
+            }
+
             // Regular string
             return var_export($value, true);
         }
