@@ -11,12 +11,22 @@
 
 namespace GromNaN\SymfonyConfigXmlToPhp;
 
+use SebastianBergmann\Diff\Differ;
+use SebastianBergmann\Diff\Output\UnifiedDiffOutputBuilder;
+use Symfony\Component\Config\Exception\LoaderLoadException;
+use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Dumper\XmlDumper;
+use Symfony\Component\DependencyInjection\Exception\InvalidArgumentException;
+use Symfony\Component\DependencyInjection\Exception\LogicException;
+use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
+use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 
@@ -76,7 +86,7 @@ final class ConvertCommand extends Command
 
             foreach ($filesArray as $file) {
                 try {
-                    $this->processFile($io, $file, $target, $converter, $dryRun, $overwrite);
+                    $this->processFile($io, $file, $target, $converter, $dryRun, $overwrite, $skipValidation);
                     $successCount++;
                 } catch (\Exception $e) {
                     $failureCount++;
@@ -192,5 +202,61 @@ final class ConvertCommand extends Command
         // Write the output file
         file_put_contents($phpPath, $phpContent);
         $io->text(sprintf('  Created: %s', $phpPath));
+    }
+
+    /**
+     * Validate that the converted PHP file produces the same container as the original XML file.
+     */
+    private function validateFile(SymfonyStyle $io, string $xmlFile, string $phpFile, bool $skipValidation): bool
+    {
+        if ($skipValidation) {
+            return true;
+        }
+
+        try {
+            $xmlContainer = new ContainerBuilder();
+            $xmlLoader = new XmlFileLoader($xmlContainer, new FileLocator());
+            $xmlLoader->load(realpath($xmlFile));
+        } catch (LoaderLoadException|InvalidArgumentException|LogicException $e) {
+            $io->text(sprintf('  <comment>Skipping validation</comment> - XML file has errors: %s', $e->getMessage()));
+            return false;
+        }
+
+        try {
+            $phpContainer = new ContainerBuilder();
+            $phpLoader = new PhpFileLoader($phpContainer, new FileLocator());
+            $phpLoader->load(realpath($phpFile));
+        } catch (\Throwable $e) {
+            $io->text(sprintf('  <error>Validation failed</error> - PHP file cannot be loaded: %s', $e->getMessage()));
+            return false;
+        }
+
+        $xmlDump = new XmlDumper($xmlContainer)->dump();
+        $phpDump = new XmlDumper($phpContainer)->dump();
+
+        if ($xmlDump === $phpDump) {
+            $io->text('  <info>✓ Validation passed</info>');
+            return true;
+        }
+
+        $differ = new Differ(new UnifiedDiffOutputBuilder());
+        $diff = $differ->diff($xmlDump, $phpDump);
+        $io->text('  <error>✗ Validation failed</error> - The XML and PHP dumps are not equal');
+        
+        if ($io->isVerbose()) {
+            $io->newLine();
+            $io->text('  Diff:');
+            $replace = [
+                '~^(---.*?)$~m' => '<fg=yellow>$1</>',
+                '~^(\+\+\+.*?)$~m' => '<fg=yellow>$1</>',
+                '~^(@@.*?@@)$~m' => '<fg=cyan>$1</>',
+                '~^(\-.*?)$~m' => '<fg=red>$1</>',
+                '~^(\+.*?)$~m' => '<fg=green>$1</>',
+            ];
+            $coloredDiff = preg_replace(array_keys($replace), array_values($replace), $diff);
+            $io->text('  ' . str_replace("\n", "\n  ", $coloredDiff));
+        }
+
+        return false;
     }
 }

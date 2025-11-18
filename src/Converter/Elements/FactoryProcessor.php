@@ -35,6 +35,9 @@ class FactoryProcessor extends AbstractElementProcessor
         } elseif ($class) {
             // Static factory
             return $this->nl().'->factory([\''.$this->escapeString($class).'\', \''.$method.'\'])';
+        } elseif ($method) {
+            // Method-only factory (self/null factory) - static constructor on the same class
+            return $this->nl().'->factory([null, \''.$this->escapeString($method).'\'])';
         }
 
         // Inline factory definition (parent element contains the factory config)

@@ -350,8 +350,14 @@ class ServiceConverter extends AbstractConverter
         if ($this->parseBooleanAttribute($serviceNode, 'private')) {
             $output .= $this->nl().'->private()';
         }
-        if ($this->parseBooleanAttribute($serviceNode, 'lazy')) {
-            $output .= $this->nl().'->lazy()';
+        // Handle lazy attribute - can be boolean or string (interface name)
+        if ($serviceNode->hasAttribute('lazy')) {
+            $lazy = $serviceNode->getAttribute('lazy');
+            if (in_array($lazy, ['true', '1'], true)) {
+                $output .= $this->nl().'->lazy()';
+            } else {
+                $output .= $this->nl().'->lazy('.$this->formatString($lazy).')';
+            }
         }
         if ($this->parseBooleanAttribute($serviceNode, 'abstract')) {
             $output .= $this->nl().'->abstract()';
@@ -613,19 +619,42 @@ class ServiceConverter extends AbstractConverter
 
         $output = $this->nl().'$services->load(\''.$this->escapeString($namespace).'\', \''.$resource.'\')';
 
+        // Collect all exclude patterns from both attribute and child elements
+        $excludes = [];
         if ($exclude) {
-            // Parse the exclude pattern - it might be a single pattern with {a,b,c} notation
-            if (strpos($exclude, '{') !== false && strpos($exclude, '}') !== false) {
-                // It's a single pattern with alternatives inside braces, keep as single string
-                $output .= $this->nl(1).'->exclude(['.$this->nl(2).'\''.$exclude.'\',' . $this->nl(1).'])';
-            } else {
-                // Multiple patterns separated by commas
-                $excludes = array_map('trim', explode(',', $exclude));
-                if (count($excludes) === 1) {
-                    $output .= '->exclude(\''.$excludes[0].'\')';
-                } else {
-                    $output .= '->exclude(['.implode(', ', array_map(fn($e) => "'$e'", $excludes)).'])';
+            $excludes[] = $exclude;
+        }
+        
+        // Process child <exclude> elements
+        foreach ($prototypeNode->childNodes as $node) {
+            if ($node instanceof \DOMElement && $node->nodeName === 'exclude') {
+                $trimmedValue = trim($node->nodeValue);
+                if ($trimmedValue !== '') {
+                    $excludes[] = $trimmedValue;
                 }
+            }
+        }
+
+        if (!empty($excludes)) {
+            if (count($excludes) === 1) {
+                $singleExclude = $excludes[0];
+                // Check if it's a single pattern with {a,b,c} notation
+                if (strpos($singleExclude, '{') !== false && strpos($singleExclude, '}') !== false) {
+                    $output .= $this->nl(1).'->exclude(['.$this->nl(2).'\''.$singleExclude.'\',' . $this->nl(1).'])';
+                } else {
+                    $output .= '->exclude(\''.$this->escapeString($singleExclude).'\')';
+                }
+            } else {
+                // Multiple exclude patterns
+                $this->indentLevel++;
+                $output .= $this->nl().'->exclude([';
+                $this->indentLevel++;
+                foreach ($excludes as $exc) {
+                    $output .= $this->nl().'\''.$this->escapeString($exc).'\',';
+                }
+                $this->indentLevel--;
+                $output .= $this->nl().'])';
+                $this->indentLevel--;
             }
         }
 
@@ -634,6 +663,11 @@ class ServiceConverter extends AbstractConverter
 
         foreach ($prototypeNode->childNodes as $node) {
             if ($node instanceof \DOMElement) {
+                // Skip exclude elements - already processed above
+                if ($node->nodeName === 'exclude') {
+                    continue;
+                }
+                
                 try {
                     $processor = $this->processorFactory->getProcessor($node);
                     $output .= $processor->process($node);
