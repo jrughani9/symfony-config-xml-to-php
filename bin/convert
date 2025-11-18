@@ -13,11 +13,22 @@
 use GromNaN\SymfonyConfigXmlToPhp\ConvertCommand;
 use Symfony\Component\Console\Application;
 
-foreach ([__DIR__ . '/../../../autoload.php', __DIR__ . '/../vendor/autoload.php'] as $file) {
-	if (file_exists($file)) {
-		require $file;
-		break;
-	}
+$autoloaders = [
+    __DIR__ . '/../../../autoload.php',
+    __DIR__ . '/../vendor/autoload.php',
+];
+
+// Check if we're being run through Composer's bin proxy wrapper
+// The proxy sets $_composer_autoload_path global variable pointing to the project's autoloader
+if (isset($GLOBALS['_composer_autoload_path']) && file_exists($GLOBALS['_composer_autoload_path'])) {
+    array_unshift($autoloaders, $GLOBALS['_composer_autoload_path']);
+}
+
+foreach ($autoloaders as $file) {
+    if (file_exists($file)) {
+        require $file;
+        break;
+    }
 }
 
 $console = new Application();
