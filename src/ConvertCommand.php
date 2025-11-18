@@ -31,6 +31,8 @@ use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 use Symfony\Component\Routing\Loader\PhpFileLoader as RoutingPhpFileLoader;
 use Symfony\Component\Routing\Loader\XmlFileLoader as RoutingXmlFileLoader;
+use Symfony\Component\Routing\Route;
+use Symfony\Component\Routing\RouteCollection;
 
 final class ConvertCommand extends Command
 {
@@ -282,40 +284,19 @@ final class ConvertCommand extends Command
             return false;
         }
 
+        // Create clean copies without resources for comparison
+        $xmlClean = $this->normalizeRouteCollection($xmlRoutes);
+        $phpClean = $this->normalizeRouteCollection($phpRoutes);
+
+
         // Deep comparison: serialize both collections and compare
-        $xmlSerialized = serialize($xmlRoutes);
-        $phpSerialized = serialize($phpRoutes);
+        $xmlSerialized = serialize($xmlClean);
+        $phpSerialized = serialize($phpClean);
 
         if ($xmlSerialized === $phpSerialized) {
             $io->text('  <info>✓ Validation passed</info>');
             return true;
         }
-
-//        // If serialization doesn't match, do a more lenient check
-//        // Compare individual routes
-//        $xmlRoutesArray = iterator_to_array($xmlRoutes);
-//        $phpRoutesArray = iterator_to_array($phpRoutes);
-//
-//        $mismatch = false;
-//        foreach ($xmlRoutesArray as $name => $xmlRoute) {
-//            if (!isset($phpRoutesArray[$name])) {
-//                $mismatch = true;
-//                break;
-//            }
-//            // Compare key properties
-//            $phpRoute = $phpRoutesArray[$name];
-//            if ($xmlRoute->getPath() !== $phpRoute->getPath() ||
-//                $xmlRoute->getMethods() !== $phpRoute->getMethods() ||
-//                $xmlRoute->getDefaults() !== $phpRoute->getDefaults()) {
-//                $mismatch = true;
-//                break;
-//            }
-//        }
-//
-//        if (!$mismatch) {
-//            $io->text('  <info>✓ Validation passed</info>');
-//            return true;
-//        }
 
         $io->text('  <error>✗ Validation failed</error> - Routes are not equal');
         return false;
@@ -371,5 +352,33 @@ final class ConvertCommand extends Command
         }
 
         return false;
+    }
+
+    private function normalizeRouteCollection(RouteCollection $routes): RouteCollection
+    {
+        $normalized = new RouteCollection();
+
+        foreach ($routes as $name => $route) {
+            $defaults = $route->getDefaults();
+            $requirements = $route->getRequirements();
+            $options = $route->getOptions();
+            ksort($defaults);
+            ksort($requirements);
+            ksort($options);
+
+            $normalizedRoute = new Route(
+                $route->getPath(),
+                $defaults,
+                $requirements,
+                $options,
+                $route->getHost(),
+                $route->getSchemes(),
+                $route->getMethods(),
+                $route->getCondition()
+            );
+            $normalized->add($name, $normalizedRoute);
+        }
+
+        return $normalized;
     }
 }
