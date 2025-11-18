@@ -107,19 +107,19 @@ class ServiceConverter extends AbstractConverter
             }
         }
 
-        //TODO: revisit this
-        // Generate .container.known_envs parameter
-        // Symfony's XmlFileLoader automatically adds this parameter for all configs (empty collection if no when blocks)
-        $output .= $this->nl().'$parameters->set(\'.container.known_envs\', [';
+        // Generate .container.known_envs parameter only when there are when blocks
+        // This breaks unittests with symfony test fixtures but we need this for it to work with our config files
+        // Symfony's XmlFileLoader only adds this parameter when <when> blocks are present
         if (!empty($whenEnvironments)) {
+            $output .= $this->nl().'$parameters->set(\'.container.known_envs\', [';
             $this->indentLevel++;
             foreach ($whenEnvironments as $env) {
                 $output .= $this->nl().'\''.$this->escapeString($env).'\',';
             }
             $this->indentLevel--;
+            $output .= $this->nl().']);';
+            $output .= $this->nl(0);
         }
-        $output .= $this->nl().']);';
-        $output .= $this->nl(0);
 
         foreach ($document->documentElement->childNodes as $childNode) {
             if ($childNode instanceof \DOMElement && $childNode->nodeName === 'services') {
