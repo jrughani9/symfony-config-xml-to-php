@@ -124,7 +124,7 @@ final class ConvertCommand extends Command
         } elseif (is_file($source) && pathinfo($source, PATHINFO_EXTENSION) === 'xml') {
             try {
                 $file = new SplFileInfo($source, dirname($source), basename($source));
-                $this->processFile($io, $file, $target, $converter, $dryRun, $overwrite);
+                $this->processFile($io, $file, $target, $converter, $dryRun, $overwrite, $skipValidation);
 
                 if ($dryRun) {
                     $io->section('Preview of generated PHP file:');
@@ -159,7 +159,7 @@ final class ConvertCommand extends Command
     /**
      * Process a single XML file and convert it to PHP.
      */
-    private function processFile(SymfonyStyle $io, SplFileInfo $file, ?string $targetDir, XmlToPhpConfigConverter $converter, bool $dryRun, bool $overwrite): void
+    private function processFile(SymfonyStyle $io, SplFileInfo $file, ?string $targetDir, XmlToPhpConfigConverter $converter, bool $dryRun, bool $overwrite, bool $skipValidation): void
     {
         $io->text(sprintf('Converting: %s', $file->getRelativePathname()));
 
@@ -202,6 +202,8 @@ final class ConvertCommand extends Command
         // Write the output file
         file_put_contents($phpPath, $phpContent);
         $io->text(sprintf('  Created: %s', $phpPath));
+
+        $this->validateFile($io, $file->getRealPath(), $phpPath, $skipValidation);
     }
 
     /**
