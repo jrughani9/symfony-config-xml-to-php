@@ -25,191 +25,353 @@ class ArgumentProcessor extends AbstractElementProcessor
 
     public function process(DOMElement $element): string
     {
-        $type = $element->getAttribute('type');
-        $key = $element->getAttribute('key');
-        $id = $element->getAttribute('id');
-
-        // Check for inline service definition first
-        foreach ($element->childNodes as $child) {
-            if ($child instanceof \DOMElement && $child->nodeName === 'service') {
-                // This is an inline service definition
-                $inlineClass = $child->getAttribute('class');
-                if ($inlineClass) {
-                    // Add warning about inline service
-                    $this->warningCollector?->addWarning(
-                        'Inline service definition detected',
-                        [
-                            'class' => $inlineClass,
-                            'context' => 'argument',
-                            'note' => 'Inline services are flattened in PHP DSL and may not behave identically',
-                        ]
-                    );
-
-                    // For now, we'll use inline_service() function
-                    // Note: This is a simplified representation - Symfony actually creates anonymous services
-                    $inlineOutput = "inline_service('".$this->escapeString($inlineClass)."')";
-
-                    // Process arguments of the inline service if any
-                    $inlineArgs = $this->processInlineServiceArguments($child);
-                    if (!empty($inlineArgs)) {
-                        $inlineOutput .= '->args(['.implode(', ', $inlineArgs).'])';
-                    }
-
-                    return $inlineOutput;
-                }
-            }
-        }
-
-        // Service reference
-        if ($type === 'service' || $id) {
-            return "service('".($id ?: $this->getTextContent($element))."')";
-        }
-
-        // Tagged services
-        if ($type === 'tagged_iterator' || $type === 'tagged') {
-            $tag = $element->getAttribute('tag');
-            $params = ["'".$tag."'"];
-
-            // Handle exclude as array or single value
-            $excludeItems = [];
-            foreach ($element->childNodes as $child) {
-                if ($child instanceof DOMElement && $child->nodeName === 'exclude') {
-                    $excludeItems[] = "'".$child->nodeValue."'";
-                }
-            }
-
-            // Build named parameters
-            if ($element->hasAttribute('index-by')) {
-                $params[] = "indexAttribute: '".$element->getAttribute('index-by')."'";
-            }
-            if ($element->hasAttribute('default-index-method')) {
-                $params[] = "defaultIndexMethod: '".$element->getAttribute('default-index-method')."'";
-            }
-            if ($element->hasAttribute('default-priority-method')) {
-                $params[] = "defaultPriorityMethod: '".$element->getAttribute('default-priority-method')."'";
-            }
-            if ($element->hasAttribute('exclude')) {
-                $params[] = "exclude: '".$element->getAttribute('exclude')."'";
-            } elseif (!empty($excludeItems)) {
-                $params[] = "exclude: [".implode(', ', $excludeItems)."]";
-            }
-            if ($element->hasAttribute('exclude-self')) {
-                $excludeSelf = $element->getAttribute('exclude-self') === 'true' ? 'true' : 'false';
-                $params[] = "excludeSelf: ".$excludeSelf;
-            }
-
-            return sprintf("tagged_iterator(%s)", implode(', ', $params));
-        }
-
-        // Tagged locator
-        if ($type === 'tagged_locator') {
-            $tag = $element->getAttribute('tag');
-            $params = ["'".$tag."'"];
-
-            // Handle exclude as array or single value
-            $excludeItems = [];
-            foreach ($element->childNodes as $child) {
-                if ($child instanceof DOMElement && $child->nodeName === 'exclude') {
-                    $excludeItems[] = "'".$child->nodeValue."'";
-                }
-            }
-
-            // Build named parameters
-            if ($element->hasAttribute('index-by')) {
-                $params[] = "indexAttribute: '".$element->getAttribute('index-by')."'";
-            }
-            if ($element->hasAttribute('default-index-method')) {
-                $params[] = "defaultIndexMethod: '".$element->getAttribute('default-index-method')."'";
-            }
-            if ($element->hasAttribute('default-priority-method')) {
-                $params[] = "defaultPriorityMethod: '".$element->getAttribute('default-priority-method')."'";
-            }
-            if ($element->hasAttribute('exclude')) {
-                $params[] = "exclude: '".$element->getAttribute('exclude')."'";
-            } elseif (!empty($excludeItems)) {
-                $params[] = "exclude: [".implode(', ', $excludeItems)."]";
-            }
-            if ($element->hasAttribute('exclude-self')) {
-                $excludeSelf = $element->getAttribute('exclude-self') === 'true' ? 'true' : 'false';
-                $params[] = "excludeSelf: ".$excludeSelf;
-            }
-
-            return sprintf("tagged_locator(%s)", implode(', ', $params));
-        }
-
-        // Service locator
-        if ($type === 'service_locator') {
-            $services = [];
-            foreach ($element->childNodes as $child) {
-                if ($child instanceof DOMElement && $child->nodeName === 'argument') {
-                    $serviceKey = $child->getAttribute('key');
-                    $serviceId = $child->getAttribute('id');
-                    if ($serviceKey && $serviceId) {
-                        $services[] = sprintf("'%s' => service('%s')", $serviceKey, $serviceId);
-                    }
-                }
-            }
-            return 'service_locator(['.implode(', ', $services).'])';
-        }
-
-        // Collection
-        if ($type === 'collection') {
-            $items = [];
-            foreach ($element->childNodes as $child) {
-                if ($child instanceof DOMElement && $child->nodeName === 'argument') {
-                    $childProcessor = new self();
-                    $childProcessor->setIndentLevel($this->indentLevel);
-                    $childKey = $child->getAttribute('key');
-                    $childValue = $childProcessor->process($child);
-
-                    if ($childKey !== '') {
-                        $items[] = var_export($childKey, true).' => '.$childValue;
-                    } else {
-                        $items[] = $childValue;
-                    }
-                }
-            }
-            return '['.implode(', ', $items).']';
-        }
-
-        // Constant
-        if ($type === 'constant') {
-            $constantName = $this->getTextContent($element);
-            return sprintf("constant('%s')", $constantName);
-        }
-
-        // Binary
-        if ($type === 'binary') {
-            $binaryContent = $this->getTextContent($element);
-            return sprintf("binary('%s')", $binaryContent);
-        }
-
-        // Expression
-        if ($type === 'expression') {
-            $expression = $this->getTextContent($element);
-            return sprintf("expr('%s')", $expression);
-        }
-
-        // Regular value
-        $value = $this->getTextContent($element);
-        return $this->convertValue($value);
+        return $this->formatArgument($element);
     }
 
     /**
-     * Process arguments for inline service definitions
+     * Format a single argument element
      */
-    private function processInlineServiceArguments(\DOMElement $serviceElement): array
+    private function formatArgument(DOMElement $argument): string
     {
-        $arguments = [];
+        $type = $argument->getAttribute('type') ?: null;
+        $value = $argument->nodeValue;
 
-        foreach ($serviceElement->childNodes as $node) {
-            if ($node instanceof \DOMElement && $node->nodeName === 'argument') {
-                $processor = new self();
-                $processor->setIndentLevel($this->indentLevel);
-                $arguments[] = $processor->process($node);
+        // Handle nested arguments (collection)
+        if (in_array($type, ['collection', null], true)) {
+            $items = [];
+            foreach ($argument->childNodes as $item) {
+                if (!$item instanceof DOMElement) {
+                    continue;
+                }
+                if ($item->nodeName !== $argument->nodeName) {
+                    continue;
+                }
+
+                $itemKey = $item->getAttribute('key') ?: $item->getAttribute('name');
+
+                // Transform key based on key-type attribute
+                $itemKey = match ($item->getAttribute('key-type')) {
+                    'constant' => '\\'.ltrim($itemKey, '\\'),
+                    'binary' => 'base64_decode('.$this->formatString($itemKey).')',
+                    default => $this->formatString($itemKey),
+                };
+
+                if ($itemKey) {
+                    $items[] = $itemKey . ' => ' . $this->formatArgument($item);
+                } else {
+                    $items[] = $this->formatArgument($item);
+                }
+            }
+
+            if ($items) {
+                return '[' . implode(', ', $items) . ']';
+            }
+
+            // Force empty array for a "collection" type, even if no child nodes
+            if ($type === 'collection') {
+                return '[]';
             }
         }
 
-        return $arguments;
+        // Inline services are defined with a nested <service> element
+        foreach ($argument->childNodes as $childNode) {
+            if ($childNode instanceof DOMElement && $childNode->nodeName === 'service') {
+                return $this->processInlineService($childNode);
+            }
+        }
+
+        // Handle specific argument types
+        if ($type === 'service' || $type === 'service_closure') {
+            return $this->processServiceReference($argument, $type);
+        }
+
+        if ($type === 'closure') {
+            if ($argument->hasAttribute('id')) {
+                return 'closure(' . $this->processServiceReference($argument, 'service') . ')';
+            }
+
+            return 'closure(' . ($this->formatArguments($argument) ?? '[]') . ')';
+        }
+
+        if ($type === 'expression') {
+            return "expr({$this->formatString($value)})";
+        }
+
+        if ($type === 'string') {
+            return $this->formatString($value);
+        }
+
+        if ($type === 'constant') {
+            return '\\'.ltrim($value, '\\');
+        }
+
+        if ($type === 'binary') {
+            return 'base64_decode('.$this->formatString($value).')';
+        }
+
+        if ($type === 'tagged' || $type === 'tagged_iterator') {
+            return $this->processTagged('tagged_iterator', $argument);
+        }
+
+        if ($type === 'tagged_locator') {
+            return $this->processTagged('tagged_locator', $argument);
+        }
+
+        if ($type === 'service_locator') {
+            return $this->processServiceLocator($argument);
+        }
+
+        if ($type === 'iterator') {
+            return 'iterator(' . ($this->formatArguments($argument) ?? '[]') . ')';
+        }
+
+        if ($type === 'abstract') {
+            return 'abstract_arg('.$this->formatString($value).')';
+        }
+
+        if ($type === null) {
+            // Default handling (treat as string or convert to appropriate PHP value)
+            return $this->formatValue($value);
+        }
+
+        throw new \RuntimeException(sprintf('Unsupported argument type: %s', $type));
+    }
+
+    /**
+     * Format a list of arguments from element's child argument nodes
+     */
+    private function formatArguments(DOMElement $element): ?string
+    {
+        /** @var DOMElement[] $arguments */
+        $arguments = array_filter(iterator_to_array($element->childNodes), fn(\DOMNode $node) => $node instanceof DOMElement && $node->nodeName === 'argument');
+
+        if (count($arguments) === 0) {
+            return null;
+        }
+
+        // If there's only one argument, use ->args([...])
+        if (count($arguments) === 1) {
+            $arg = current($arguments);
+            $key = $arg->getAttribute('key');
+            if ($arg->hasAttribute('index')) {
+                $key = 'index_'.$arg->getAttribute('index');
+            }
+            if ($key) {
+                return '[' . $this->formatString($key) . ' => ' . $this->formatArgument($arg) . ']';
+            }
+
+            return '[' . $this->formatArgument($arg) . ']';
+        }
+
+        $output = '[';
+        $this->indentLevel++;
+        foreach ($arguments as $arg) {
+            if (!$arg instanceof DOMElement) {
+                continue;
+            }
+            $key = $arg->getAttribute('key');
+            if ($arg->hasAttribute('index')) {
+                $key = $arg->getAttribute('index');
+            }
+            if ($key) {
+                $output .= $this->nl() . $this->formatString($key) . ' => ' . $this->formatArgument($arg) . ',';
+            } else {
+                $output .= $this->nl() . $this->formatArgument($arg) . ',';
+            }
+        }
+        $this->indentLevel--;
+
+        return $output . $this->nl().']';
+    }
+
+    /**
+     * Process a service reference (service or service_closure)
+     */
+    private function processServiceReference(DOMElement $element, string $type): string
+    {
+        $id = $element->getAttribute('id');
+        $output = $type.'('.$this->formatString($id).')';
+
+        $onInvalid = $element->getAttribute('on-invalid') ?: 'exception';
+        $output .= match ($onInvalid) {
+            'ignore' => '->ignoreOnInvalid()',
+            'null' => '->nullOnInvalid()',
+            'ignore_uninitialized' => '->ignoreOnUninitialized()',
+            'exception' => '',
+        };
+
+        return $output;
+    }
+
+    /**
+     * Process inline service definition
+     */
+    private function processInlineService(DOMElement $service): string
+    {
+        $class = $service->getAttribute('class') ?: throw new \LogicException('Inline service must have a class attribute.');
+        $output = sprintf('inline_service(%s)', $this->formatString($class));
+
+        // Process service configuration (arguments, properties, calls, etc.)
+        $this->indentLevel++;
+        
+        // Handle arguments
+        $arguments = $this->formatArguments($service);
+        if ($arguments !== null) {
+            $output .= $this->nl() . '->args(' . $arguments . ')';
+        }
+
+        // Handle lazy attribute
+        if ($service->hasAttribute('lazy')) {
+            $lazy = $service->getAttribute('lazy');
+            if ($lazy === 'true' || $lazy === '1') {
+                $output .= $this->nl().'->lazy()';
+            } else {
+                $output .= $this->nl().'->lazy(' . $this->formatString($lazy) . ')';
+            }
+        }
+
+        // Handle properties
+        foreach ($service->childNodes as $childNode) {
+            if (!($childNode instanceof DOMElement)) {
+                continue;
+            }
+
+            if ($childNode->nodeName === 'property') {
+                $propName = $childNode->getAttribute('key') ?: $childNode->getAttribute('name');
+                $output .= $this->nl() . '->property('.$this->formatString($propName).', '.$this->formatArgument($childNode).')';
+            }
+        }
+
+        $this->indentLevel--;
+
+        return $output;
+    }
+
+    /**
+     * Process tagged_iterator or tagged_locator argument
+     */
+    private function processTagged(string $method, DOMElement $argument): string
+    {
+        $output = $method.'(' . $this->formatString($argument->getAttribute('tag'));
+
+        if ($argument->hasAttribute('index-by')) {
+            $output .= ', indexAttribute: ' . $this->formatString($argument->getAttribute('index-by'));
+        }
+
+        if ($argument->hasAttribute('default-index-method')) {
+            $output .= ', defaultIndexMethod: ' . $this->formatString($argument->getAttribute('default-index-method'));
+        }
+
+        if ($argument->hasAttribute('default-priority-method')) {
+            $output .= ', defaultPriorityMethod: ' . $this->formatString($argument->getAttribute('default-priority-method'));
+        }
+
+        // Exclude can be an attribute or multiple <exclude> child elements
+        $exclude = [];
+        if ($argument->hasAttribute('exclude')) {
+            $exclude[] = $this->formatString($argument->getAttribute('exclude'));
+        }
+        foreach ($argument->childNodes as $childNode) {
+            if ($childNode instanceof DOMElement && $childNode->nodeName === 'exclude') {
+                $exclude[] = $this->formatString($childNode->nodeValue);
+            }
+        }
+        if ($exclude) {
+            $output .= ', exclude: ' . match(count($exclude)) {
+                1 => current($exclude),
+                default => '[' . implode(', ', $exclude) . ']',
+            };
+        }
+
+        if ($argument->hasAttribute('exclude-self')) {
+            $excludeSelf = $argument->getAttribute('exclude-self') === 'true' ? 'true' : 'false';
+            $output .= ', excludeSelf: ' . $excludeSelf;
+        }
+
+        return $output . ')';
+    }
+
+    /**
+     * Process service_locator argument
+     */
+    private function processServiceLocator(DOMElement $argument): string
+    {
+        $output = 'service_locator([';
+
+        $this->indentLevel++;
+        foreach ($argument->childNodes as $item) {
+            if (!$item instanceof DOMElement || $item->nodeName !== 'argument') {
+                continue;
+            }
+
+            $itemKey = $item->getAttribute('key');
+            if ($itemKey) {
+                $output .= $this->nl() . $this->formatString($itemKey) . ' => ' . $this->formatArgument($item) . ',';
+            } else {
+                $output .= $this->nl() . $this->formatArgument($item) . ',';
+            }
+        }
+        $this->indentLevel--;
+
+        return $output . $this->nl().'])';
+    }
+
+    /**
+     * Format a string value for PHP output (with quotes)
+     */
+    private function formatString(string $value): string
+    {
+        if (class_exists($value) || interface_exists($value) || trait_exists($value) || enum_exists($value)) {
+            return '\\'.ltrim($value, '\\') . '::class';
+        }
+
+        if (str_ends_with($value, '\\')) {
+            $value = addcslashes($value, '\'\\');
+        } else {
+            $value = addcslashes($value, '\'');
+        }
+
+        return "'" . $value . "'";
+    }
+
+    /**
+     * Format a value for PHP output, detecting type
+     */
+    private function formatValue(string $value): string
+    {
+        // Try to detect the value type
+        if (strtolower($value) === 'true') {
+            return 'true';
+        }
+
+        if (strtolower($value) === 'false') {
+            return 'false';
+        }
+
+        if (strtolower($value) === 'null') {
+            return 'null';
+        }
+
+        if (is_numeric($value)) {
+            return $value;
+        }
+
+        // Check if it's a parameter reference
+        if (preg_match('/^%(.+)%$/', $value)) {
+            return $this->formatString($value);
+        }
+
+        // Check if it's a service reference
+        if (str_starts_with($value, '@')) {
+            return "service('" . substr($value, 1) . "')";
+        }
+
+        // Check if it's a class constant reference
+        if (preg_match('/^[\w\\\\]+::[A-Z_]+$/', $value)) {
+            return '\\'.ltrim($value, '\\');
+        }
+
+        // Regular string
+        return $this->formatString($value);
     }
 }

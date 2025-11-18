@@ -11,29 +11,18 @@
 namespace GromNaN\SymfonyConfigXmlToPhp\Converter\Elements;
 
 use DOMElement;
-use GromNaN\SymfonyConfigXmlToPhp\Converter\WarningCollectorInterface;
 
-class PropertyProcessor extends AbstractElementProcessor
+class FileProcessor extends AbstractElementProcessor
 {
-    private ?WarningCollectorInterface $warningCollector = null;
-
-    public function __construct(?WarningCollectorInterface $warningCollector = null)
+    public function __construct()
     {
-        parent::__construct('property');
-        $this->warningCollector = $warningCollector;
+        parent::__construct('file');
     }
 
     public function process(DOMElement $element): string
     {
-        $name = $element->getAttribute('key') ?: $element->getAttribute('name');
-
-        // Use ArgumentProcessor to handle the complex value conversion
-        // This ensures properties get the same type handling as arguments
-        $argumentProcessor = new ArgumentProcessor($this->warningCollector);
-        $argumentProcessor->setIndentLevel($this->indentLevel);
-        $value = $argumentProcessor->process($element);
-
-        return '->property('.$this->formatString($name).', '.$value.')';
+        $filePath = trim($element->nodeValue);
+        return '->file(' . $this->formatString($filePath) . ')';
     }
 
     /**

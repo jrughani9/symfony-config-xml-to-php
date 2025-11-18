@@ -28,13 +28,22 @@ class CallProcessor extends AbstractElementProcessor
         $argumentProcessor = new ArgumentProcessor();
         $argumentProcessor->setIndentLevel($this->indentLevel);
 
-        foreach ($element->childNodes as $node) {
-            if ($node instanceof DOMElement && $node->nodeName === 'argument') {
-                $arguments[] = $argumentProcessor->process($node);
+        // Collect arguments preserving their keys
+        /** @var DOMElement[] $argumentElements */
+        $argumentElements = array_filter(iterator_to_array($element->childNodes), fn(\DOMNode $node) => $node instanceof DOMElement && $node->nodeName === 'argument');
+
+        foreach ($argumentElements as $argNode) {
+            $key = $argNode->getAttribute('key');
+            $argValue = $argumentProcessor->process($argNode);
+            
+            if ($key) {
+                $arguments[] = $this->formatString($key) . ' => ' . $argValue;
+            } else {
+                $arguments[] = $argValue;
             }
         }
 
-        $output = $this->nl().'->call(\''.$method.'\'';
+        $output = $this->nl().'->call('.$this->formatString($method);
 
         if (!empty($arguments)) {
             $output .= ', ['.implode(', ', $arguments).']';
@@ -50,5 +59,23 @@ class CallProcessor extends AbstractElementProcessor
         $output .= ')';
 
         return $output;
+    }
+
+    /**
+     * Format a string value for PHP output (with quotes)
+     */
+    private function formatString(string $value): string
+    {
+        if (class_exists($value) || interface_exists($value) || trait_exists($value) || enum_exists($value)) {
+            return '\\'.ltrim($value, '\\') . '::class';
+        }
+
+        if (str_ends_with($value, '\\')) {
+            $value = addcslashes($value, '\'\\');
+        } else {
+            $value = addcslashes($value, '\'');
+        }
+
+        return "'" . $value . "'";
     }
 }

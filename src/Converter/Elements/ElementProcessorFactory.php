@@ -30,6 +30,8 @@ class ElementProcessorFactory
             new PropertyProcessor($warningCollector),
             new BindProcessor(),
             new FactoryProcessor(),
+            new DeprecatedProcessor(),
+            new FileProcessor(),
         ];
     }
 

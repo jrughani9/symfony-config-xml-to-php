@@ -11,29 +11,25 @@
 namespace GromNaN\SymfonyConfigXmlToPhp\Converter\Elements;
 
 use DOMElement;
-use GromNaN\SymfonyConfigXmlToPhp\Converter\WarningCollectorInterface;
 
-class PropertyProcessor extends AbstractElementProcessor
+class DeprecatedProcessor extends AbstractElementProcessor
 {
-    private ?WarningCollectorInterface $warningCollector = null;
-
-    public function __construct(?WarningCollectorInterface $warningCollector = null)
+    public function __construct()
     {
-        parent::__construct('property');
-        $this->warningCollector = $warningCollector;
+        parent::__construct('deprecated');
     }
 
     public function process(DOMElement $element): string
     {
-        $name = $element->getAttribute('key') ?: $element->getAttribute('name');
+        $message = trim($element->nodeValue);
+        $package = $element->getAttribute('package');
+        $version = $element->getAttribute('version');
 
-        // Use ArgumentProcessor to handle the complex value conversion
-        // This ensures properties get the same type handling as arguments
-        $argumentProcessor = new ArgumentProcessor($this->warningCollector);
-        $argumentProcessor->setIndentLevel($this->indentLevel);
-        $value = $argumentProcessor->process($element);
-
-        return '->property('.$this->formatString($name).', '.$value.')';
+        return '->deprecate(' .
+            $this->formatString($package) . ', ' .
+            $this->formatString($version) . ', ' .
+            $this->formatString($message) .
+        ')';
     }
 
     /**

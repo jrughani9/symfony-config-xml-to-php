@@ -180,11 +180,14 @@ class ServiceConverter extends AbstractConverter
     private function processParameters(\DOMElement $parametersNode): string
     {
         $output = '';
+        $parameterProcessor = new Elements\ParameterProcessor();
+        $parameterProcessor->setIndentLevel($this->indentLevel);
+        
         foreach ($parametersNode->childNodes as $node) {
             if ($node instanceof \DOMElement && $node->nodeName === 'parameter') {
                 $key = $node->getAttribute('key');
-                $value = $this->getParameterValue($node);
-                $output .= $this->nl().'$parameters->set(\''.$key.'\', '.$this->convertValue($value).');';
+                $value = $parameterProcessor->process($node);
+                $output .= $this->nl().'$parameters->set('.$this->formatString($key).', '.$value.');';
             }
         }
         if ($output) {
@@ -193,48 +196,6 @@ class ServiceConverter extends AbstractConverter
         return $output;
     }
 
-    private function getParameterValue(\DOMElement $node)
-    {
-        $type = $node->getAttribute('type');
-        $value = trim($node->textContent);
-
-        switch ($type) {
-            case 'collection':
-                $items = [];
-                foreach ($node->childNodes as $child) {
-                    if ($child instanceof \DOMElement && $child->nodeName === 'parameter') {
-                        $key = $child->getAttribute('key');
-                        $childValue = $this->getParameterValue($child);
-                        if ($key) {
-                            $items[$key] = $childValue;
-                        } else {
-                            $items[] = $childValue;
-                        }
-                    }
-                }
-                return $items;
-            case 'string':
-                return $value;
-            case 'boolean':
-                return in_array(strtolower($value), ['true', '1', 'yes', 'on'], true);
-            case 'integer':
-                return (int) $value;
-            case 'float':
-                return (float) $value;
-            case 'constant':
-                return '\\'.ltrim($value, '\\');
-            case 'binary':
-                return base64_decode($value);
-            default:
-                if (preg_match('/^%env\((.+)\)%$/', $value)) {
-                    return $value;
-                }
-                if (is_numeric($value)) {
-                    return strpos($value, '.') !== false ? (float) $value : (int) $value;
-                }
-                return $value;
-        }
-    }
 
     private function processServices(\DOMElement $servicesNode): string
     {
@@ -329,6 +290,22 @@ class ServiceConverter extends AbstractConverter
             if ($this->parseBooleanAttribute($serviceNode, 'public')) {
                 $output .= '->public()';
             }
+
+            // Handle deprecation for aliases
+            foreach ($serviceNode->childNodes as $node) {
+                if ($node instanceof \DOMElement && $node->nodeName === 'deprecated') {
+                    $package = $node->getAttribute('package');
+                    $version = $node->getAttribute('version');
+                    $message = $this->getTextContent($node);
+
+                    $deprecateArgs = [];
+                    $deprecateArgs[] = "'".$package."'";
+                    $deprecateArgs[] = "'".$version."'";
+                    $deprecateArgs[] = "'".$this->escapeString($message ?: '')."'";
+
+                    $output .= '->deprecate('.implode(', ', $deprecateArgs).')';
+                }
+            }
         } else {
             $output = $this->nl().'$services->set(\''.$this->escapeString($id).'\'';
 
@@ -352,11 +329,20 @@ class ServiceConverter extends AbstractConverter
         $this->indentLevel++;
         $this->processorFactory->setIndentLevel($this->indentLevel);
 
-        if ($this->parseBooleanAttribute($serviceNode, 'autowire')) {
+        // Handle autowire with both true and false cases
+        $autowire = $serviceNode->getAttribute('autowire');
+        if (in_array($autowire, ['true', '1'], true)) {
             $output .= $this->nl().'->autowire()';
+        } elseif (in_array($autowire, ['false', '0'], true)) {
+            $output .= $this->nl().'->autowire(false)';
         }
-        if ($this->parseBooleanAttribute($serviceNode, 'autoconfigure')) {
+
+        // Handle autoconfigure with both true and false cases
+        $autoconfigure = $serviceNode->getAttribute('autoconfigure');
+        if (in_array($autoconfigure, ['true', '1'], true)) {
             $output .= $this->nl().'->autoconfigure()';
+        } elseif (in_array($autoconfigure, ['false', '0'], true)) {
+            $output .= $this->nl().'->autoconfigure(false)';
         }
         if ($this->parseBooleanAttribute($serviceNode, 'public')) {
             $output .= $this->nl().'->public()';
@@ -435,11 +421,37 @@ class ServiceConverter extends AbstractConverter
             if ($node instanceof \DOMElement) {
                 switch ($node->nodeName) {
                     case 'file':
-                        $output .= $this->nl().'->file(\''.$this->getTextContent($node).'\')';
+                        $output .= $this->nl().'->file('.$this->formatString($this->getTextContent($node)).')';
                         break;
                     case 'argument':
                     case 'deprecated':
                         // Already handled
+                        break;
+                    case 'resource-tag':
+                        // Handle resource-tag specifically
+                        $tagName = $node->getAttribute('name') ?: $node->nodeValue;
+                        $output .= $this->nl().'->resourceTag('.$this->formatString($tagName);
+                        
+                        // Add attributes if present
+                        $attributes = [];
+                        foreach ($node->attributes as $attrName => $attrNode) {
+                            if ($attrName !== 'name') {
+                                $attributes[$attrName] = $this->formatValue($attrNode->nodeValue);
+                            }
+                        }
+                        
+                        if (!empty($attributes)) {
+                            $outputs = [];
+                            foreach ($attributes as $key => $value) {
+                                $outputs[] = $this->formatString($key) . ' => ' . $value;
+                            }
+                            $output .= ', ['.implode(', ', $outputs).']';
+                        }
+                        
+                        $output .= ')';
+                        break;
+                    case 'from-callable':
+                        $output .= $this->processFromCallable($node);
                         break;
                     default:
                         try {
@@ -465,27 +477,116 @@ class ServiceConverter extends AbstractConverter
 
     private function processArguments(\DOMElement $serviceNode): array
     {
-        $arguments = [];
         $argumentProcessor = new ArgumentProcessor();
         $argumentProcessor->setIndentLevel($this->indentLevel);
 
-        $argElements = [];
-        foreach ($serviceNode->childNodes as $node) {
-            if ($node instanceof \DOMElement && $node->nodeName === 'argument') {
-                $index = $node->getAttribute('index');
-                if ($index !== '') {
-                    $argElements[(int) $index] = $node;
-                } else {
-                    $argElements[] = $node;
-                }
+        /** @var \DOMElement[] $argumentElements */
+        $argumentElements = array_filter(iterator_to_array($serviceNode->childNodes), fn(\DOMNode $node) => $node instanceof \DOMElement && $node->nodeName === 'argument');
+
+        if (count($argumentElements) === 0) {
+            return [];
+        }
+
+        // If there's only one argument, use simple format
+        if (count($argumentElements) === 1) {
+            $arg = current($argumentElements);
+            $key = $arg->getAttribute('key');
+            if ($arg->hasAttribute('index')) {
+                $key = 'index_'.$arg->getAttribute('index');
+            }
+            if ($key) {
+                return [$this->formatString($key) . ' => ' . $argumentProcessor->process($arg)];
+            }
+
+            return [$argumentProcessor->process($arg)];
+        }
+
+        // Multiple arguments - preserve keys and format nicely
+        $arguments = [];
+        foreach ($argumentElements as $arg) {
+            $key = $arg->getAttribute('key');
+            if ($arg->hasAttribute('index')) {
+                $key = $arg->getAttribute('index');
+            }
+            if ($key) {
+                $arguments[] = $this->formatString($key) . ' => ' . $argumentProcessor->process($arg);
+            } else {
+                $arguments[] = $argumentProcessor->process($arg);
             }
         }
 
-        foreach ($argElements as $argNode) {
-            $arguments[] = $argumentProcessor->process($argNode);
+        return $arguments;
+    }
+
+    /**
+     * Format a string value for PHP output (with quotes)
+     */
+    private function formatString(string $value): string
+    {
+        if (class_exists($value) || interface_exists($value) || trait_exists($value) || enum_exists($value)) {
+            return '\\'.ltrim($value, '\\') . '::class';
         }
 
-        return $arguments;
+        if (str_ends_with($value, '\\')) {
+            $value = addcslashes($value, '\'\\');
+        } else {
+            $value = addcslashes($value, '\'');
+        }
+
+        return "'" . $value . "'";
+    }
+
+    /**
+     * Format a value for PHP output, detecting type
+     */
+    private function formatValue(string $value): string
+    {
+        // Try to detect the value type
+        if (strtolower($value) === 'true') {
+            return 'true';
+        }
+
+        if (strtolower($value) === 'false') {
+            return 'false';
+        }
+
+        if (strtolower($value) === 'null') {
+            return 'null';
+        }
+
+        if (is_numeric($value)) {
+            return $value;
+        }
+
+        // Check if it's a parameter reference
+        if (preg_match('/^%(.+)%$/', $value)) {
+            return $this->formatString($value);
+        }
+
+        // Regular string
+        return $this->formatString($value);
+    }
+
+    /**
+     * Process from-callable element
+     */
+    private function processFromCallable(\DOMElement $callable): string
+    {
+        $service = $callable->getAttribute('service');
+        $class = $callable->getAttribute('class');
+        $method = $callable->getAttribute('method');
+
+        if ($service && $method) {
+            // Service::method form
+            return $this->nl().'->fromCallable([service('.$this->formatString($service).'), '.$this->formatString($method).'])';
+        }
+
+        if ($class && $method) {
+            // Class::method form
+            return $this->nl().'->fromCallable(['.$this->formatString($class).', '.$this->formatString($method).'])';
+        }
+
+        return '';
     }
 
     private function processAlias(\DOMElement $aliasNode): string
