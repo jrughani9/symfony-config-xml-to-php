@@ -84,7 +84,8 @@ class RoutingConverter extends AbstractConverter
 
         $methods = $routeNode->getAttribute('methods');
         if ($methods) {
-            $methodArray = array_map('trim', explode(',', $methods));
+            $separator = strpos($methods, '|') !== false ? '|' : ',';
+            $methodArray = array_map('trim', explode($separator, $methods));
             $output .= $this->nl().'->methods('.$this->convertValue($methodArray).')';
         }
 
@@ -95,7 +96,8 @@ class RoutingConverter extends AbstractConverter
 
         $schemes = $routeNode->getAttribute('schemes');
         if ($schemes) {
-            $schemeArray = array_map('trim', explode(',', $schemes));
+            $separator = strpos($schemes, '|') !== false ? '|' : ',';
+            $schemeArray = array_map('trim', explode($separator, $schemes));
             $output .= $this->nl().'->schemes('.$this->convertValue($schemeArray).')';
         }
 
